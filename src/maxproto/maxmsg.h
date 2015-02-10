@@ -17,16 +17,56 @@
  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * The MIT License (MIT)
+ * Copyright (c) 2013 bouni
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+ * the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+ * FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+ * COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+ * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+ * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #ifndef MAXMSG_H
 #define MAXMSG_H
 
+/* struct MAX_message is a generic structure to be used for all messages. */
 typedef struct MAX_message {
-    char type;
-    char colon; /* reserved for ':' */
-    char data[1];
+    char type;    /* message name */
+    char colon;   /* reserved for ':' */
+    char data[1]; /* data points to beginning of message payload */
 };
+
+/*
+ * Incoming messages
+ * ==========================================
+ * INCOMING HELLO:                       "H:"
+ * INCOMING NTP SERVER:                  "F:"
+ * INCOMING DEVICE LIST:                 "L:"
+ * INCOMING CONFIGURATION:               "C:"
+ * INCOMING METADATA:                    "M:"
+ * INCOMING NEW DEVICE:                  "N:"
+ * INCOMING ACKNOWLEDGE:                 "A:"
+ * INCOMING ENCRYPTION:                  "E:"
+ * INCOMING DECRYPTION:                  "D:"
+ * INCOMING SET CREDENTIALS:             "b:"
+ * INCOMING GET CREDENTIALS:             "g:"
+ * INCOMING SET REMOTEACCESS:            "j:"
+ * INCOMING SET USER DATA:               "p:"
+ * INCOMING GET USER DATA:               "o:"
+ * INCOMING CHECK PRODUCT ACTIVATION:    "v:"
+ * INCOMING ACTIVATE PRODUCT:            "w:"
+ * INCOMING SEND DEVICE CMD:             "S:"
+ */
 
 /* struct H_Data - HEX payload in H message */
 struct H_Data {
@@ -106,18 +146,39 @@ union C_Data_Config {
     } rtc;
 };
 
-struct m_l {
-    char type;
-    char colon; /* reserved for ':' */
-    char CRLF[2]; /* reserved for '\n\r' */
-};
+/* Outgoing messages
+ * ==========================================
+ * OUTGOING URL:                         "u:"
+ * OUTGOING INTERVAL:                    "i:"
+ * OUTGOING SEND:                        "s:"
+ * OUTGOING METADATA:                    "m:"
+ * OUTGOING INCLUSION MODE:              "n:"
+ * OUTGOING CANCEL INCLUSION MODE:       "x:"
+ * OUTGOING MORE DATA:                   "g:"
+ * OUTGOING QUIT:                        "q:"
+ * OUTGOING ENCRYPTION:                  "e:"
+ * OUTGOING DECRYPTION:                  "d:"
+ * OUTGOING SET CREDENTIALS:             "B:"
+ * OUTGOING GET CREDENTIALS:             "G:"
+ * OUTGOING SET REMOTEACCESS:            "J:"
+ * OUTGOING SET USER DATA:               "P:"
+ * OUTGOING GET USER DATA:               "O:"
+ * OUTGOING CHECK PRODUCT ACTIVATION:    "V:"
+ * OUTGOING ACTIVATE PRODUCT:            "W:"
+ * OUTGOING SEND DEVICE CMD:             "s:"
+ * OUTGOING RESET:                       "a:"
+ * OUTGOING RESET ERROR:                 "r:"
+ * OUTGOING DELETE DEVICES:              "t:"
+ * OUTGOING SET PUSHBUTTON CONFIG:       "w:"
+ * OUTGOING GET DEVICE LIST:             "l:"
+ * OUTGOING SET URL:                     "u:"
+ * OUTGOING GET CONFIGURATION:           "c:"
+ * OUTGOING TIME CONFIG:                 "v:"
+ * OUTGOING NTP SERVER:                  "f:"
+ * OUTGOING SEND WAKEUP:                 "z:"
+*/
 
-struct m_s {
-    char type;
-    char colon; /* reserved for ':' */
-    char data[1];
-};
-
+/* struct s_Data - HEX payload in s message */
 struct s_Data {
     char Base_String[6];
     char RF_Address[3];
@@ -137,6 +198,16 @@ struct s_Data {
     char Time_of_day6[1];
     char Temperature7[1];
     char Time_of_day7[1];
+};
+
+/* struct l_Data - contains only CR LF terminator for q message */
+struct q_Data {
+    char CRLF[2]; /* reserved for '\n\r' */
+};
+
+/* struct l_Data - contains only CR LF terminator for l message */
+struct l_Data {
+    char CRLF[2]; /* reserved for '\n\r' */
 };
 
 #endif /* MAXMSG_H */
