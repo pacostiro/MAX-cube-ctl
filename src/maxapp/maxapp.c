@@ -310,8 +310,8 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
             case 'C':
                 {
                     struct C_Data *C_D = (struct C_Data*)md;
-                    char *tmp;
-                    char buf[16];
+                    unsigned char *tmp;
+                    char buf[16], *str;
                     int val;
                     union C_Data_Device *data =
                         (union C_Data_Device*)(md + sizeof(struct C_Data));
@@ -416,9 +416,9 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                             printf("\tSerial Number       %s\n", buf);
                             
                             val = config->cubec.Is_Portal_Enabled[0];
-                            tmp = config->cubec.Portal_URL;
+                            str = config->cubec.Portal_URL;
                             printf("\tPortal              %s\n",
-                                (val == 0) ? "disabled" : (char*)tmp);
+                                (val == 0) ? "disabled" : str);
                             
                             break;
                         }
@@ -499,8 +499,8 @@ int main(int argc, char *argv[])
     char recvBuff[4096];
     struct sockaddr_in serv_addr;
     MAX_msg_list* msg_list = NULL;
-    struct MAX_message *m_s;
-    struct m_l m_l;
+    struct MAX_message *m_s, *m_l;
+    struct l_Data *l_d;
 
     if(argc < 3 || argc > 4)
     {
@@ -559,10 +559,13 @@ set:
     m_s = create_s_cmd(&n);
     write(sockfd, m_s, n);
     free(m_s);
-    m_l.type = 'l';
-    m_l.colon = ':';
-    strncpy(m_l.CRLF, MSG_END, sizeof(MSG_END));
+    m_l = malloc(sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
+    m_l->type = 'l';
+    m_l->colon = ':';
+    l_d = (struct l_Data*)m_l->data;
+    memcpy(l_d, MSG_END, sizeof(MSG_END));
     write(sockfd, &m_l, sizeof(m_l));
+    free(m_l);
     return 0;
 }
 

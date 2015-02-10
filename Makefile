@@ -17,7 +17,7 @@ MAIN = maxapp
 # deleting dependencies appended to the file from 'make depend'
 #
 
- .PHONY: depend clean
+.PHONY: depend clean
 
 all:    $(MAIN)
 	@echo  maxapp has been compiled
@@ -31,5 +31,7 @@ $(MAIN): $(OBJS)
 clean:
 	$(RM) *.o *~ $(MAIN)
 
-# DO NOT DELETE THIS LINE -- make depend needs it
+depend: $(SRCS)
+	makedepend $(INCLUDES) $^
 
+# DO NOT DELETE THIS LINE -- make depend needs it

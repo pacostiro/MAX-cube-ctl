@@ -40,7 +40,7 @@
 #define MAXMSG_H
 
 /* struct MAX_message is a generic structure to be used for all messages. */
-typedef struct MAX_message {
+struct MAX_message {
     char type;    /* message name */
     char colon;   /* reserved for ':' */
     char data[1]; /* data points to beginning of message payload */
@@ -104,7 +104,7 @@ struct C_Data {
 union C_Data_Device {
     struct cube {
         unsigned char Data_Length[1];
-        char Address_of_device[3];
+        unsigned char Address_of_device[3];
         unsigned char Device_Type[1];
         unsigned char unknown1[1];
         unsigned char Firmware_version[1];
@@ -113,7 +113,7 @@ union C_Data_Device {
     } cube;
     struct device {
         unsigned char Data_Length[1];
-        char Address_of_device[3];
+        unsigned char Address_of_device[3];
         unsigned char Device_Type[1];
         unsigned char Room_ID[1];
         unsigned char Firmware_version[1];
