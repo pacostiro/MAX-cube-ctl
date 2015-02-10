@@ -184,20 +184,13 @@ struct s_Data {
     char RF_Address[3];
     char Room_Nr[1];
     char Day_of_week[1];
-    char Temperature[1];
-    char Time_of_day[1];
-    char Temperature2[1];
-    char Time_of_day2[1];
-    char Temperature3[1];
-    char Time_of_day3[1];
-    char Temperature4[1];
-    char Time_of_day4[1];
-    char Temperature5[1];
-    char Time_of_day5[1];
-    char Temperature6[1];
-    char Time_of_day6[1];
-    char Temperature7[1];
-    char Time_of_day7[1];
+    char Temp_and_Time[2];
+    char Temp_and_Time2[2];
+    char Temp_and_Time3[2];
+    char Temp_and_Time4[2];
+    char Temp_and_Time5[2];
+    char Temp_and_Time6[2];
+    char Temp_and_Time7[2];
 };
 
 /* struct l_Data - contains only CR LF terminator for q message */
