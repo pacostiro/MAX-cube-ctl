@@ -51,12 +51,22 @@ enum MaxDeviceType
     EcoButton = 5
 };
 
-static char* device_types[] = {"Cube", "RadiatorThermostat",
-    "RadiatorThermostatPlus", "WallThermostat",
-    "ShutterContact", "EcoButton"};
+static char* device_types[] = {
+    "Cube",
+    "RadiatorThermostat",
+    "RadiatorThermostatPlus",
+    "WallThermostat",
+    "ShutterContact",
+    "EcoButton"};
 
-static char* week_days[] = {"Saturday", "Sunday", "Monday", "Tuesday",
-    "Wednesday", "Thursday", "Friday"};
+static char* week_days[] = {
+    "Saturday",
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday"};
 
 static char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
     'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -447,28 +457,28 @@ struct MAX_message* create_s_cmd(int *len)
 
     temp = 20, hours = 6, minutes = 30;
     t = (60 * hours + minutes) / 5;
-    s_Data.Temperature[0] = (((temp * 2) << 1) | ((t >> 8) & (0x1)));
-    s_Data.Time_of_day[0] = (t & 0xff);
+    s_Data.Temp_and_Time[0] = (((temp * 2) << 1) | ((t >> 8) & (0x1)));
+    s_Data.Temp_and_Time[1] = (t & 0xff);
 
     temp = 22, hours = 24, minutes = 00;
     t = (60 * hours + minutes) / 5;
-    s_Data.Temperature2[0] = (((temp * 2) << 1) | ((t >> 8) & (0x1)));
-    s_Data.Time_of_day2[0] = (t & 0xff);
+    s_Data.Temp_and_Time2[0] = (((temp * 2) << 1) | ((t >> 8) & (0x1)));
+    s_Data.Temp_and_Time2[1] = (t & 0xff);
 
-    s_Data.Temperature3[0] = 0;
-    s_Data.Time_of_day3[0] = 0;
+    s_Data.Temp_and_Time3[0] = 0;
+    s_Data.Temp_and_Time3[1] = 0;
 
-    s_Data.Temperature4[0] = 0;
-    s_Data.Time_of_day4[0] = 0;
+    s_Data.Temp_and_Time4[0] = 0;
+    s_Data.Temp_and_Time4[1] = 0;
 
-    s_Data.Temperature5[0] = 0;
-    s_Data.Time_of_day5[0] = 0;
+    s_Data.Temp_and_Time5[0] = 0;
+    s_Data.Temp_and_Time5[1] = 0;
 
-    s_Data.Temperature6[0] = 0;
-    s_Data.Time_of_day6[0] = 0;
+    s_Data.Temp_and_Time6[0] = 0;
+    s_Data.Temp_and_Time6[1] = 0;
 
-    s_Data.Temperature7[0] = 0;
-    s_Data.Time_of_day7[0] = 0;
+    s_Data.Temp_and_Time7[0] = 0;
+    s_Data.Temp_and_Time7[1] = 0;
 
     off = sizeof(struct MAX_message) - 1;
     m_s = (struct MAX_message*)base64_encode((const unsigned char*)&s_Data, sizeof(s_Data), off,
