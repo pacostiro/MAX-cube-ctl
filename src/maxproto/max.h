@@ -19,6 +19,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */ 
 
+#ifndef MAX_H
+#define MAX_H
+
 #if 0
 int MAXDiscoverSend();
 int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
@@ -26,4 +29,6 @@ int MAXConnect(struct sockaddr *sa);
 int MAXDisconnect(int connectionId);
 int MAXMsgSend(int connectionId, struct MAX_msg_list *output_msg_list);
 int MaxMsgRecv(int connectionId, struct MAX_msg_list **input_msg_list);
+#endif
+
 #endif
