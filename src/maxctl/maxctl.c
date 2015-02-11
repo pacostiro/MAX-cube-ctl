@@ -30,6 +30,7 @@
 #include <sys/types.h>
 
 #include "maxmsg.h"
+#include "base64.h"
 
 #define MSG_END "\r\n"
 #define MAX_SCHED 13
@@ -67,104 +68,6 @@ static char* week_days[] = {
     "Wednesday",
     "Thursday",
     "Friday"};
-
-static char encoding_table[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-    'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-    'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
-    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
-    'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-    'w', 'x', 'y', 'z', '0', '1', '2', '3',
-    '4', '5', '6', '7', '8', '9', '+', '/'};
-static char *decoding_table = NULL;
-static int mod_table[] = {0, 2, 1};
-
-void build_decoding_table() {
-    int i;
-    decoding_table = malloc(256);
-
-    for (i = 0; i < 64; i++)
-        decoding_table[(unsigned char) encoding_table[i]] = i;
-}
-
-char *base64_encode(const unsigned char *data,
-        size_t input_length,
-        size_t output_off,
-        size_t output_pad,
-        size_t *output_length) {
-    int i, j;
-    *output_length = 4 * ((input_length + 2) / 3);
-
-    char *encoded_data = malloc(*output_length + output_off + output_pad);
-    if (encoded_data == NULL) return NULL;
-
-    for (i = 0, j = output_off; i < input_length;) {
-
-        uint32_t octet_a = i < input_length ? (unsigned char)data[i++] : 0;
-        uint32_t octet_b = i < input_length ? (unsigned char)data[i++] : 0;
-        uint32_t octet_c = i < input_length ? (unsigned char)data[i++] : 0;
-
-        uint32_t triple = (octet_a << 0x10) + (octet_b << 0x08) + octet_c;
-
-        encoded_data[j++] = encoding_table[(triple >> 3 * 6) & 0x3F];
-        encoded_data[j++] = encoding_table[(triple >> 2 * 6) & 0x3F];
-        encoded_data[j++] = encoding_table[(triple >> 1 * 6) & 0x3F];
-        encoded_data[j++] = encoding_table[(triple >> 0 * 6) & 0x3F];
-    }
-
-    for (i = 0; i < mod_table[input_length % 3]; i++)
-        encoded_data[*output_length - 1 - i + output_off] = '=';
-
-    return encoded_data;
-}
-
-unsigned char *base64_decode(const char *data,
-        size_t input_length,
-        size_t output_off,
-        size_t output_pad,
-        size_t *output_length) {
-    unsigned char *decoded_data;
-    int i, j;
-
-    if (decoding_table == NULL) build_decoding_table();
-
-    if (input_length % 4 != 0)
-    {
-        *output_length = 0;
-        printf("base64_decode error\n");
-        return NULL;
-    }
-
-    *output_length = input_length / 4 * 3;
-    if (data[input_length - 1] == '=') (*output_length)--;
-    if (data[input_length - 2] == '=') (*output_length)--;
-
-    decoded_data = malloc(*output_length + output_off + output_pad);
-    if (decoded_data == NULL) return NULL;
-
-    for (i = 0, j = output_off; i < input_length;) {
-
-        uint32_t sextet_a = data[i] == '=' ? 0 & i++ : decoding_table[data[i++]];
-        uint32_t sextet_b = data[i] == '=' ? 0 & i++ : decoding_table[data[i++]];
-        uint32_t sextet_c = data[i] == '=' ? 0 & i++ : decoding_table[data[i++]];
-        uint32_t sextet_d = data[i] == '=' ? 0 & i++ : decoding_table[data[i++]];
-
-        uint32_t triple = (sextet_a << 3 * 6)
-            + (sextet_b << 2 * 6)
-            + (sextet_c << 1 * 6)
-            + (sextet_d << 0 * 6);
-
-        if (j < *output_length) decoded_data[j++] = (triple >> 2 * 8) & 0xFF;
-        if (j < *output_length) decoded_data[j++] = (triple >> 1 * 8) & 0xFF;
-        if (j < *output_length) decoded_data[j++] = (triple >> 0 * 8) & 0xFF;
-    }
-
-    return decoded_data;
-}
-
-void base64_cleanup() {
-    free(decoding_table);
-}
 
 void nullifyCommas(char *start, char* end)
 {
@@ -238,7 +141,7 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                 /* Move to second field */
                 /* Calculate length of second field */
                 len = tmp - 2 - pos - off;
-                new->MAX_msg = (struct MAX_message*)base64_decode(pos + off,
+                new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
                                len, off, 0, &outlen);
 
                 memcpy(new->MAX_msg, pos, off);
@@ -481,7 +384,7 @@ struct MAX_message* create_s_cmd(int *len)
     s_Data.Temp_and_Time7[1] = 0;
 
     off = sizeof(struct MAX_message) - 1;
-    m_s = (struct MAX_message*)base64_encode((const unsigned char*)&s_Data, sizeof(s_Data), off,
+    m_s = (struct MAX_message*)hex_to_base64((const unsigned char*)&s_Data, sizeof(s_Data), off,
             strlen(MSG_END) + 1, &outlen);
     m_s->type = 's';
     m_s->colon = ':';
@@ -564,7 +467,7 @@ set:
     m_l->colon = ':';
     l_d = (struct l_Data*)m_l->data;
     memcpy(l_d, MSG_END, sizeof(MSG_END));
-    write(sockfd, &m_l, sizeof(m_l));
+    write(sockfd, m_l, sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
     free(m_l);
     return 0;
 }

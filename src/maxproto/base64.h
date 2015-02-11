@@ -19,16 +19,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */ 
 
-#ifndef MAX_H
-#define MAX_H
+#ifndef BASE64_H
+#define BASE64_H
 
-#if 0
-int MAXDiscoverSend();
-int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
-int MAXConnect(struct sockaddr *sa);
-int MAXDisconnect(int connectionId);
-int MAXMsgSend(int connectionId, struct MAX_msg_list *output_msg_list);
-int MaxMsgRecv(int connectionId, struct MAX_msg_list **input_msg_list);
-#endif
+void create_inv_base64_index_table();
+void free_inv_base64_index_table();
+char *hex_to_base64(const unsigned char *data, size_t data_sz,
+        size_t output_off, size_t output_pad, size_t *output_sz);
+unsigned char *base64_to_hex(const char *data, size_t data_sz,
+        size_t output_off, size_t output_pad, size_t *output_sz);
 
-#endif /* MAX_H */
+#endif /* BASE64_H*/

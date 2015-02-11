@@ -5,11 +5,11 @@ CFLAGS = -Wall -g
 
 INCLUDES += -I./src/maxproto
 
-SRCS = src/maxproto/max.c src/maxapp/maxapp.c
+SRCS = src/maxproto/max.c src/maxproto/base64.c src/maxctl/maxctl.c
 
 OBJS = $(SRCS:.c=.o)
 
-MAIN = maxapp
+MAIN = maxctl
 
 #
 # The following part of the makefile is generic; it can be used to 
@@ -35,3 +35,4 @@ depend: $(SRCS)
 	makedepend $(INCLUDES) $^
 
 # DO NOT DELETE THIS LINE -- make depend needs it
+
