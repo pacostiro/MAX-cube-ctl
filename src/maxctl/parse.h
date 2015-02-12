@@ -17,18 +17,11 @@
  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */ 
+ */
 
-#ifndef MAX_H
-#define MAX_H
+#ifndef PARSE_H
+#define PARSE_H
 
-#include "maxmsg.h"
+int parse(const char *config_file);
 
-int MAXDiscoverSend();
-int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
-int MAXConnect(struct sockaddr *sa);
-int MAXDisconnect(int connectionId);
-int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list);
-int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo);
-
-#endif /* MAX_H */
+#endif /* PARSE_H */

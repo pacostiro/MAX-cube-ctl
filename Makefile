@@ -5,7 +5,8 @@ CFLAGS = -Wall -g
 
 INCLUDES += -I./src/maxproto
 
-SRCS = src/maxproto/max.c src/maxproto/base64.c src/maxctl/maxctl.c
+SRCS = src/maxproto/max.c src/maxproto/base64.c src/maxproto/maxmsg.c
+SRCS += src/maxctl/maxctl.c
 
 OBJS = $(SRCS:.c=.o)
 
@@ -20,7 +21,7 @@ MAIN = maxctl
 .PHONY: depend clean
 
 all:    $(MAIN)
-	@echo  maxapp has been compiled
+	@echo  Build OK!
 
 $(MAIN): $(OBJS) 
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(MAIN) $(OBJS) $(LFLAGS) $(LIBS)

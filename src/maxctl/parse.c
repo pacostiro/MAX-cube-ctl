@@ -2,9 +2,9 @@
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 1. Redistributions of source code must retain the above copyright notice, this
+ * * Redistributions of source code must retain the above copyright notice, this
  * list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright notice,
+ * * Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
@@ -17,18 +17,17 @@
  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */ 
+ */
 
-#ifndef MAX_H
-#define MAX_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/types.h>
 
-#include "maxmsg.h"
 
-int MAXDiscoverSend();
-int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
-int MAXConnect(struct sockaddr *sa);
-int MAXDisconnect(int connectionId);
-int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list);
-int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo);
-
-#endif /* MAX_H */
+int parse(const char *config_file)
+{
+    return 0;
+}

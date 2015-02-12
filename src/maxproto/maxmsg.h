@@ -39,12 +39,31 @@
 #ifndef MAXMSG_H
 #define MAXMSG_H
 
+enum MaxDeviceType
+{
+    Cube = 0,
+    RadiatorThermostat = 1,
+    RadiatorThermostatPlus = 2,
+    WallThermostat = 3,
+    ShutterContact = 4,
+    EcoButton = 5
+};
+
 /* struct MAX_message is a generic structure to be used for all messages. */
 struct MAX_message {
     char type;    /* message name */
     char colon;   /* reserved for ':' */
     char data[1]; /* data points to beginning of message payload */
 };
+
+/* MAX_msg_list is structure used to implement a list of messages that are
+ * part of a packet */
+typedef struct MME
+{
+    struct MME *prev;
+    struct MME *next;
+    struct MAX_message *MAX_msg;
+} MAX_msg_list;
 
 /*
  * Incoming messages
@@ -202,5 +221,7 @@ struct q_Data {
 struct l_Data {
     char CRLF[2]; /* reserved for '\n\r' */
 };
+
+void dumpMAXpkt(MAX_msg_list* msg_list);
 
 #endif /* MAXMSG_H */

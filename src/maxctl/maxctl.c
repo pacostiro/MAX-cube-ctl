@@ -29,313 +29,20 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include "max.h"
 #include "maxmsg.h"
 #include "base64.h"
 
 #define MSG_END "\r\n"
-#define MAX_SCHED 13
 
-typedef struct MME
-{
-    struct MME *prev;
-    struct MME *next;
-    struct MAX_message *MAX_msg;
-} MAX_msg_list;
+#define MSG_TMO 2
 
-enum MaxDeviceType
+enum Mode
 {
-    Cube = 0,
-    RadiatorThermostat = 1,
-    RadiatorThermostatPlus = 2,
-    WallThermostat = 3,
-    ShutterContact = 4,
-    EcoButton = 5
+    Auto = 0,
+    Comfort = 1,
+    Eco = 2
 };
-
-static char* device_types[] = {
-    "Cube",
-    "RadiatorThermostat",
-    "RadiatorThermostatPlus",
-    "WallThermostat",
-    "ShutterContact",
-    "EcoButton"};
-
-static char* week_days[] = {
-    "Saturday",
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday"};
-
-void nullifyCommas(char *start, char* end)
-{
-    if (start == NULL || end == NULL)
-        return;
-    while(start < end)
-    {
-        if (*start == ',')
-            *start = '\0';
-        start++;
-    }
-    *end = '\0';
-}
-
-int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
-{
-    char *pos = MAXData, *tmp;
-    char *end = MAXData + size - 1;
-    MAX_msg_list *new = NULL, *iter;
-    int done = 0, len;
-    size_t outlen, off;
-
-    if (MAXData == NULL)
-    {
-        return -1;
-    }
-    while (pos != NULL && pos < end)
-    {
-        if (*(pos + 1) != ':')
-        {
-            printf("Warning: illegal message\n");
-            break;
-        }
-        tmp = strstr(pos, "\r\n");
-        if (tmp == NULL)
-        {
-            printf("Warning: illegal message\n");
-            break;
-        }
-        nullifyCommas(pos, tmp);
-        tmp += 2;
-        new = (MAX_msg_list*)malloc(sizeof(MAX_msg_list));
-        if (*msg_list == NULL)
-        {
-            *msg_list = new;
-            new->prev = NULL;
-            new->next = NULL;
-        }
-        else
-        {
-            iter = *msg_list;
-            while (iter->next != NULL) {
-                iter = iter->next;
-            }
-            iter->next = new;
-            new->prev = iter;
-        }
-        switch (*pos)
-        {
-            case 'H':
-            {
-                int H_len = sizeof(struct MAX_message) - 1 +
-                            sizeof(struct H_Data);
-                new->MAX_msg = malloc(H_len);
-                memcpy(new->MAX_msg, pos, H_len);
-                break;
-            }
-            case 'C':
-                /* Calculate offset of second field (C_Data_Device)*/
-                off = sizeof(struct MAX_message) - 1 + sizeof(struct C_Data);
-                /* Move to second field */
-                /* Calculate length of second field */
-                len = tmp - 2 - pos - off;
-                new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
-                               len, off, 0, &outlen);
-
-                memcpy(new->MAX_msg, pos, off);
-                break;
-            case 'L':
-                done = 1;
-            case 'M':
-            case 'S':
-            case 'Q':
-            default:
-                new->MAX_msg = malloc(tmp - pos);
-                memcpy(new->MAX_msg, pos, tmp - pos);
-                break;
-        }
-        pos = tmp;
-    }
-    return done;
-}
-
-void dumpMAXpkt(MAX_msg_list* msg_list)
-{
-    while (msg_list != NULL) {
-        char* md = msg_list->MAX_msg->data;
-        printf("Message type %c\n", msg_list->MAX_msg->type);
-        switch (msg_list->MAX_msg->type)
-        {
-            case 'H':
-                {
-                    int year, month, day;
-                    int hour, minutes;
-                    char tmp[16];
-                    struct H_Data *H_D = (struct H_Data*)md;
-                    printf("\tSerial no           %s\n",
-                            H_D->Serial_number);
-                    printf("\tRF address          %s\n",
-                            H_D->RF_address);
-                    printf("\tFirmware version    %s\n",
-                            H_D->Firmware_version);
-                    printf("\tunknown             %s\n",
-                            H_D->unknown);
-                    printf("\tHTTP connection id  %s\n",
-                            H_D->HTTP_connection_id);
-                    printf("\tDuty cycle          %s\n",
-                            H_D->Duty_cycle);
-                    printf("\tFree Memory Slots   %d\n",
-                            (int) strtol(H_D->Free_Memory_Slots, NULL, 16));
-                    memcpy(tmp, H_D->Cube_date, 2);
-                    tmp[2] = '\0';
-                    year = 2000 + strtol(tmp, NULL, 16);
-                    memcpy(tmp, H_D->Cube_date + 2, 2);
-                    tmp[2] = '\0';
-                    month = strtol(tmp, NULL, 16);
-                    memcpy(tmp, H_D->Cube_date + 4, 2);
-                    tmp[2] = '\0';
-                    day = strtol(tmp, NULL, 16);
-                    printf("\tCube date           %d/%d/%d\n",
-                            day, month, year);
-                    memcpy(tmp, H_D->Cube_time, 2);
-                    tmp[2] = '\0';
-                    hour = strtol(tmp, NULL, 16);
-                    memcpy(tmp, H_D->Cube_time + 2, 2);
-                    tmp[2] = '\0';
-                    minutes = strtol(tmp, NULL, 16);
-                    printf("\tCube time           %02d:%02d\n", hour, minutes);
-                    printf("\tState Cube Time     %s\n", H_D->State_Cube_Time);
-                    printf("\tNTP Counter         %s\n", H_D->NTP_Counter);
-                    break;
-                }
-            case 'C':
-                {
-                    struct C_Data *C_D = (struct C_Data*)md;
-                    unsigned char *tmp;
-                    char buf[16], *str;
-                    int val;
-                    union C_Data_Device *data =
-                        (union C_Data_Device*)(md + sizeof(struct C_Data));
-
-                    switch (data->device.Device_Type[0])
-                    {
-                        case RadiatorThermostat:
-                        {
-                            float fval;
-                            int day, hours, mins;
-                            uint16_t ws;
-                            int s;
-                            union C_Data_Config *config =
-                                (union C_Data_Config*)((char*)data +
-                                        sizeof(union C_Data_Device));
-
-                            printf("\tRF address          %s\n", C_D->RF_address);
-
-                            val = data->device.Data_Length[0];
-                            printf("\tData Length         %d\n", val);
-
-                            tmp = data->device.Address_of_device;
-                            printf("\tAddress_of_device   %x%x%x\n", tmp[0], tmp[1], tmp[2]);
-
-                            val = data->device.Device_Type[0];
-                            printf("\tDevice Type         %s\n", device_types[val]);
-
-                            val = data->device.Room_ID[0];
-                            printf("\tRoom ID             %d\n", val);
-
-                            val = data->device.Firmware_version[0];
-                            printf("\tFirmware version    %d\n", val);
-
-                            val = data->device.Test_Result[0];
-                            printf("\tTest Result         %d\n", val);
-
-                            strncpy(buf, data->device.Serial_Number,
-                                    sizeof(data->device.Serial_Number));
-                            buf[sizeof(data->device.Serial_Number)] = '\0';
-                            printf("\tSerial Number       %s\n", buf);
-
-                            fval = config->rtc.Comfort_Temperature[0] / 2.;
-                            printf("\tComfort Temperature %.1f\n", fval);
-                            fval = config->rtc.Eco_Temperature[0] / 2.;
-                            printf("\tEco Temperature     %.1f\n", fval);
-                            fval = config->rtc.Temperature_offset[0] / 2. - 3.5;
-                            printf("\tTemperature offset  %.1f\n", fval);
-                            day = config->rtc.Decalcification[0] >> 5;
-                            hours = (config->rtc.Decalcification[0] & 0b11111);
-                            printf("\tDecalcification     %s %2d:00\n", week_days[day], hours);
-                            memcpy(&ws, &config->rtc.Weekly_Program[0], sizeof(ws));
-                            s = 0;
-                            day = 0;
-                            printf("\tWeekly Program\n");
-                            while (s < sizeof(config->rtc.Weekly_Program))
-                            {
-                                fval = (config->rtc.Weekly_Program[s] >> 1) / 2.;
-                                ws = (((config->rtc.Weekly_Program[s] & 1) << 8) |
-                                        config->rtc.Weekly_Program[s + 1]) * 5;
-                                hours = ws / 60;
-                                mins = ws %60;
-                                printf("\t\t%-10s  %.1f until %02d:%02d\n", week_days[day],
-                                        fval, hours, mins);
-                                if (hours >= 24)
-                                {
-                                    s = (s / (MAX_SCHED * 2) + 1) * MAX_SCHED * 2;
-                                    day++;
-                                }
-                                else
-                                {
-                                    s += 2;
-                                }
-                            }
-                            break;
-                        }
-                        case Cube:
-                        {
-                            union C_Data_Config *config =
-                                (union C_Data_Config*)((char*)data +
-                                        sizeof(union C_Data_Device));
-
-                            printf("\tRF address          %s\n",
-                                C_D->RF_address);
-
-                            val = data->cube.Data_Length[0];
-                            printf("\tData Length         %d\n", val);
-
-                            tmp = data->cube.Address_of_device;
-                            printf("\tAddress_of_device   %x%x%x\n", tmp[0],
-                                tmp[1], tmp[2]);
-
-                            val = data->cube.Device_Type[0];
-                            printf("\tDevice Type         %s\n",
-                                device_types[val]);
-
-                            val = data->cube.Firmware_version[0];
-                            printf("\tFirmware version    %d\n", val);
-
-                            strncpy(buf, data->cube.Serial_Number,
-                                    sizeof(data->cube.Serial_Number));
-                            buf[sizeof(data->cube.Serial_Number)] = '\0';
-                            printf("\tSerial Number       %s\n", buf);
-                            
-                            val = config->cubec.Is_Portal_Enabled[0];
-                            str = config->cubec.Portal_URL;
-                            printf("\tPortal              %s\n",
-                                (val == 0) ? "disabled" : str);
-                            
-                            break;
-                        }
-                        default:
-                            break;
-                    }
-                    break;
-                }
-            default:
-                break;
-        }
-        msg_list = msg_list->next;
-    }
-}
 
 struct MAX_message* create_s_cmd(int *len)
 {
@@ -396,69 +103,83 @@ struct MAX_message* create_s_cmd(int *len)
     return m_s;
 }
 
-int main(int argc, char *argv[])
+void help(const char* program)
+{
+    printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> <params>\n", program);
+    printf("\tCommands  Params\n" \
+           "\tget       status\n" \
+           "\tset       mode <auto|comfort|eco>\n");
+}
+
+int get(const char* program, struct sockaddr_in* serv_addr,
+        int argc, char *argv[])
+{
+    return 0;
+}
+
+int set(const char* program, struct sockaddr_in* serv_addr,
+        int argc, char *argv[])
 {
     int sockfd = 0, n = 0;
-    char recvBuff[4096];
-    struct sockaddr_in serv_addr;
     MAX_msg_list* msg_list = NULL;
     struct MAX_message *m_s, *m_l;
     struct l_Data *l_d;
+    int mode;
+    int connectionId;
 
-    if(argc < 3 || argc > 4)
+    if (argc != 3)
     {
-        printf("\n Usage: %s <ip of MAX! cube> <port pf MSX! cube> [set]\n",argv[0]);
+        help(program);
         return 1;
     }
 
-    printf("Welcome MAX! cube\n");
-
-    memset(recvBuff, '0',sizeof(recvBuff));
-    if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if (strcmp(argv[1], "mode") != 0)
     {
-        printf("\n Error : Could not create socket \n");
-        return 1;
-    } 
-
-    memset(&serv_addr, '0', sizeof(serv_addr)); 
-
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(atoi(argv[2])); 
-
-    if(inet_pton(AF_INET, argv[1], &serv_addr.sin_addr)<=0)
-    {
-        printf("\n inet_pton error occured\n");
-        return 1;
-    } 
-
-    if( connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    {
-        printf("\n Error : Connect Failed \n");
+        printf("Error : Invalid parameter for command\n");
+        help(program);
         return 1;
     }
 
-    if (argc == 4)
-        goto set;
-
-/*
-get:
-*/
-    while ((n = read(sockfd, recvBuff, sizeof(recvBuff) - 1)) > 0)
+    if (strcmp(argv[1], "auto") == 0)
     {
-        int done;
-        printf("Received %d bytes from MAX! cube\n", n);
-        done = parseMAXData(recvBuff, n, &msg_list);
-        if (done)
-        {
-            break;
-        }
+        mode = Auto;
+    }
+    else if (strcmp(argv[1], "comfort") == 0)
+    {
+        mode = Comfort;
+    }
+    else if (strcmp(argv[1], "eco") == 0)
+    {
+        mode = Eco;
+    }
+
+    /* Connect to cube */
+    if ((connectionId = MAXConnect((struct sockaddr*)serv_addr)) < 0)
+    {
+        printf("Error : Could not connect to MAX!cube\n");
+        return 1;
+    } 
+
+    /* Wait for Hello message */
+    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        return 1;
     }
 
     dumpMAXpkt(msg_list);
 
+    if (MAXDisconnect(connectionId) < 0)
+    {
+        printf("Error : Failed to close connection with MAX!cube\n");
+        return 1;
+    }
+
     return 0;
 
+/*
 set:
+*/
     m_s = create_s_cmd(&n);
     write(sockfd, m_s, n);
     free(m_s);
@@ -469,6 +190,44 @@ set:
     memcpy(l_d, MSG_END, sizeof(MSG_END));
     write(sockfd, m_l, sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
     free(m_l);
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{
+    struct sockaddr_in serv_addr;
+
+    if(argc < 4)
+    {
+        help(argv[0]);
+        return 1;
+    }
+
+    memset(&serv_addr, '0', sizeof(serv_addr)); 
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(atoi(argv[2])); 
+
+    printf("Welcome MAX! cube\n");
+
+    if(inet_pton(AF_INET, argv[1], &serv_addr.sin_addr)<=0)
+    {
+        printf("Error : invalid address\n");
+        help(argv[0]);
+        return 1;
+    } 
+
+    if (strcmp(argv[3], "get") == 0)
+    {
+       return get(argv[0], &serv_addr, argc - 3, &argv[3]);
+    }
+    else if (strcmp(argv[3], "set") == 0)
+    {
+       return set(argv[0], &serv_addr, argc - 3, &argv[3]);
+    }
+
+    help(argv[0]);
+
     return 0;
 }
 
