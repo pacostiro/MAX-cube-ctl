@@ -197,6 +197,10 @@ int main(int argc, char *argv[])
 {
     struct sockaddr_in serv_addr;
 
+FILE *fp = fopen("MAX.conf", "r");
+parse_file(fp);
+fclose(fp);
+return;
     if(argc < 4)
     {
         help(argv[0]);

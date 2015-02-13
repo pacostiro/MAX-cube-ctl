@@ -85,6 +85,7 @@ static int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
             }
             iter->next = new;
             new->prev = iter;
+            new->next = NULL;
         }
         switch (*pos)
         {
@@ -160,12 +161,33 @@ int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list)
 
 int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo)
 {
+#ifdef __CYGWIN__
+    fd_set fds;
+#endif
     char recvBuff[4096];
     struct timeval tv;
     int n;
 
     tv.tv_sec = tmo;
     tv.tv_usec = 0;
+    
+#ifdef __CYGWIN__
+    FD_ZERO(&fds);
+    FD_SET(connectionId, &fds);
+
+    do {
+        n = select(connectionId + 1, &fds, NULL, NULL, &tv);
+        if (n == -1)
+        {
+            return -1;
+        }
+        else if (n > 0)
+        {
+            n = read(connectionId, recvBuff, sizeof(recvBuff) - 1);
+            parseMAXData(recvBuff, n, input_msg_list);
+        }
+    } while (n > 0);
+#else
     if (setsockopt(connectionId, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,
         sizeof(struct timeval)) < 0)
     {
@@ -176,6 +198,7 @@ int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo)
     {
         parseMAXData(recvBuff, n, input_msg_list);
     }
+#endif
 
     return 0;
 }
