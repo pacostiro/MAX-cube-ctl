@@ -89,7 +89,10 @@ int yylex(void)
                 break;
             }
         }
-        return CONFIG;
+        if (cnt == 0)
+            return CONFIG;
+        else
+            yyerror("unmatching braces");
     }
 
     if (isalnum(c))
