@@ -1,5 +1,8 @@
 %{
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 struct keywords {
         const char      *name;
@@ -12,35 +15,87 @@ static int               errors = 0;
 
 int yyerror(char *message);
 int yyparse(void);
+int yylex(void);
 
 %}
 
-%token DEVICE AUTO ECO COMFORT STRING CONFIG
-
+%token DEVICE AUTO ECO COMFORT STRING CONFIG ROOM
+%token ERROR
 %%
 
 ruleset         : /* empty */
-                | ruleset device
+                | ruleset '\n'
+                | ruleset device '\n' {printf("device\n");}
                 ;
 
-device          :  CHAR 
+device          : DEVICE STRING '{' config '}' ';' {printf("config\n");}
                 ;
+
+config          : /* empty */
+                | config '\n'
+                | config param '\n' {printf("param\n");}
+                
+param           : ROOM STRING ';' {printf("room\n");}
+                | COMFORT STRING ';' {printf("comfort\n");}
+                | ECO STRING ';' {printf("eco\n");}
+                | AUTO '{' schedule '}' ';' {printf("schedule\n");}
+                ;
+                
+schedule        : /* empty */
+                | schedule '\n'
+                | schedule STRING '{' program '}' ';' {printf("program\n");}
+                ;
+                
+program         : /* empty */
+                | program '\n'
+                | program STRING STRING ';' {printf("temp setting\n");}
+                
 %%
 
+#define STACK_SZ 32
+
+int stack[STACK_SZ];
+int	sp = 0;
+
+/* Reversible getc */
+int
+rev_getc(FILE* fp)
+{
+    if (sp > 0)
+    {
+        return stack[--sp];
+    }
+    return getc(fp);
+}
+
+int
+rev_putc(int c)
+{
+    if (c == EOF)
+        return (EOF);
+    if (sp < STACK_SZ)
+    {
+        stack[sp++] = c;
+        return c;
+    }
+    return 0;
+}
 int
 kcmp(const void *k, const void *e)
 {
-    return (strcmp(k, ((const struct keywords *)e)->k_name));
+    return (strcmp(k, ((const struct keywords *)e)->name));
 }
 
 int
 get_keyword(char *s)
 {
+    /* Keep this list sorted */
     static const struct keywords keywords[] = {
             { "auto", AUTO},
             { "comfort", COMFORT},
             { "device", DEVICE},
             { "eco", ECO},
+            { "room", ROOM},
         };
 
     const struct keywords *kw;
@@ -49,7 +104,7 @@ get_keyword(char *s)
         sizeof(keywords[0]), kcmp);
 
     if (kw != NULL) {
-        return (p->k_val);
+        return (kw->val);
     } else {
         return (STRING);
     }
@@ -58,65 +113,47 @@ get_keyword(char *s)
 int yylex(void)
 {
     int      c, token;
-    char     buf[8096];
+    char     buf[8096], *p;
 
     p = buf;
-    c = getc(fin);
-
     /* Ignore whitespaces before anything */
-    while ((c = getc(fin)) == ' ')
+    while ((c = rev_getc(fin)) == ' ')
                 ; /* nothing */
 
     /* Ignore comments */
     if (c == '#')
-        while ((c = getc(fin)) != '\n' && c != EOF)
+        while ((c = rev_getc(fin)) != '\n' && c != EOF)
             ; /* nothing */
 
-    /* Ignore comments */
-    if (c == '{')
-    {
-        int cnt = 1;
-        while ((c = getc(fin)) != '\n' && c != EOF)
-        {
-            *p = c;
-            if (c == '{')
-                cnt++;
-            else if ((c == '}'))
-                cnt--;
-            if (cnt == 0)
-            {
-                p--;
-                break;
-            }
-        }
-        if (cnt == 0)
-            return CONFIG;
-        else
-            yyerror("unmatching braces");
-    }
-
+#define allowed_in_string(x) \
+	(isalnum(x) || x == ':')
     if (isalnum(c))
     {
-        *p++ = c;
-
         do {
             *p++ = c;
             if ((unsigned)(p-buf) >= sizeof(buf))
             {
                 yyerror("string too long");
-                return (findeol());
+                return ERROR;
             }
-        } while ((c = getc(fin)) != EOF && isalnum(c));
+        } while ((c = rev_getc(fin)) != EOF && allowed_in_string(c));
+        rev_putc(c);
         *p++ = '\0';
-        token = get_keyword(p);
+        token = get_keyword(buf);
         return token;
     }
 
+    /* Ignore '\r' */
+    if (c == '\r')
+    {
+        while ((c = rev_getc(fin)) == '\r')
+            ; /* nothing */
+    }
 
     if (c == EOF)
             return (0);
 
-    return CHAR;
+    return c;
 }
 
 int yyerror(char *message)
@@ -130,19 +167,6 @@ parse_file(FILE *input)
     fin = input;
     lineno = 1;
     errors = 0;
-
-    yydebug = 0;
-    yynerrs = 0;
-    yyerrflag = 0;
-    yychar = 0;
-    yyssp = NULL;
-    yyvsp = NULL;
-    memset(&yyval, 0, sizeof(YYSTYPE));
-    memset(&yylval, 0, sizeof(YYSTYPE));
-    yyss = NULL;
-    yysslim = NULL;
-    yyvs = NULL;
-    yystacksize = 0;
 
     yyparse();
 

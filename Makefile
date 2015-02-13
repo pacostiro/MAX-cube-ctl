@@ -5,8 +5,10 @@ CFLAGS = -Wall -g
 
 INCLUDES += -I./src/maxproto
 
+PARSEY = src/maxctl/parse.y
+PARSER = src/maxctl/parse.c
 SRCS = src/maxproto/max.c src/maxproto/base64.c src/maxproto/maxmsg.c
-SRCS += src/maxctl/maxctl.c src/maxctl/parse.c
+SRCS += src/maxctl/maxctl.c $(PARSER)
 
 OBJS = $(SRCS:.c=.o)
 
@@ -20,7 +22,7 @@ MAIN = maxctl
 
 .PHONY: depend clean
 
-all:    $(MAIN)
+all: parser $(MAIN)
 	@echo  Build OK!
 
 $(MAIN): $(OBJS) 
@@ -28,6 +30,9 @@ $(MAIN): $(OBJS)
 
 .c.o:
 	$(CC) $(CFLAGS) $(INCLUDES) -c $<  -o $@
+
+parser:
+	yacc -p max -o $(PARSER) $(PARSEY)
 
 clean:
 	$(RM) *.o *~ $(MAIN)
