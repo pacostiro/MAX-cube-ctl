@@ -33,9 +33,16 @@
 #include "maxmsg.h"
 #include "base64.h"
 
-#define MSG_END "\r\n"
+#include "max_parser.h"
 
-#define MSG_TMO 2
+#if 1
+#define MAX_DEBUG
+#endif
+
+#define MAX_CONFIG_FILE "MAX.conf"
+
+#define MSG_END "\r\n" /* Message terminator sequence */
+#define MSG_TMO 2      /* Message receive timeout */
 
 enum Mode
 {
@@ -111,6 +118,16 @@ void help(const char* program)
            "\tset       mode <auto|comfort|eco>\n");
 }
 
+int read_config()
+{
+    FILE *fp = fopen(MAX_CONFIG_FILE, "r");
+    int res = parse_file(fp);
+
+    fclose(fp);
+
+    return res;
+}
+
 int get(const char* program, struct sockaddr_in* serv_addr,
         int argc, char *argv[])
 {
@@ -153,6 +170,14 @@ int set(const char* program, struct sockaddr_in* serv_addr,
         mode = Eco;
     }
 
+    /* Read config file */
+    if (read_config() != 0)
+    {
+        printf("Error : Invalid configuration file\n");
+        return 1;
+    }
+return 0;
+
     /* Connect to cube */
     if ((connectionId = MAXConnect((struct sockaddr*)serv_addr)) < 0)
     {
@@ -167,7 +192,9 @@ int set(const char* program, struct sockaddr_in* serv_addr,
         return 1;
     }
 
+#ifdef MAX_DEBUG
     dumpMAXpkt(msg_list);
+#endif
 
     if (MAXDisconnect(connectionId) < 0)
     {
@@ -175,7 +202,7 @@ int set(const char* program, struct sockaddr_in* serv_addr,
         return 1;
     }
 
-    return 0;
+return 0;
 
 /*
 set:
@@ -197,10 +224,6 @@ int main(int argc, char *argv[])
 {
     struct sockaddr_in serv_addr;
 
-FILE *fp = fopen("MAX.conf", "r");
-parse_file(fp);
-fclose(fp);
-return;
     if(argc < 4)
     {
         help(argv[0]);
