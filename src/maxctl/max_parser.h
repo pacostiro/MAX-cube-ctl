@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#if 1
+#if 0
 #define MAX_PARSER_DEBUG
 #endif
 
@@ -37,22 +37,22 @@ enum ParamType
     Comfort = 2,
     Auto = 3,
 };
-#define PARAM_ROOMID  1
-#define PARAM_ECO     2
-#define PARAM_COMFORT 3
-#define PARAM_AUTO    4
+
+/* Used for empty configuration */
+#define NOT_CONFIGURED_UL ((uint32_t)0xffffffff)
+#define NOT_CONFIGURED_F ((float)0xffffffff)
 
 struct program {
+    struct program *next;
     float    temperature;
     uint16_t hour;
     uint16_t minutes;
-    struct program *next;
 };
 
 struct auto_schedule {
+    struct auto_schedule *next;
     uint16_t day;
     struct program *schedule;
-    struct auto_schedule *next;
 };
 
 struct config {
@@ -73,10 +73,30 @@ struct device_config {
 };
 
 struct ruleset {
-    struct device_config *device_config; /* Will be replaced with a union */
     struct ruleset *next;
+    struct device_config *device_config; /* Will be replaced with a union */
 };
 
-int parse_file(FILE *input);
+/* Generic list */
+struct list_gen {
+    struct list_gen *next;
+    char data[1];
+};
+
+union cfglist {
+    struct list_gen list_gen;
+    struct ruleset ruleset;
+    struct auto_schedule auto_schedule;
+    struct program program;
+};
+
+int dump_ruleset(union cfglist *cl, void *param);
+int free_ruleset(union cfglist *cl, void *param);
+
+/* Function to iterate a list and apply a callback function on each element */
+int walklist(union cfglist *list, int (*callback)(union cfglist*, void*),
+             void *param);
+
+int parse_file(FILE *input, struct ruleset **ruleset);
 
 #endif /* MAX_PARSER_H */
