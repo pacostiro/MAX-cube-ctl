@@ -49,6 +49,20 @@ enum MaxDeviceType
     EcoButton = 5
 };
 
+/* Size of the code in chars */
+#define BS_CODE_SZ  6
+
+enum BSIndex
+{
+    TemperatureAndMode = 0,
+    ProgramData = 1,
+    EcoModeTemperature = 2,
+    ConfigValveFunctions = 3,
+    AddLinkPartner = 4,
+    RemoveLinkPartner = 5,
+    SetGroupAddress =6
+};
+
 /* struct MAX_message is a generic structure to be used for all messages. */
 struct MAX_message {
     char type;    /* message name */
@@ -197,19 +211,21 @@ union C_Data_Config {
  * OUTGOING SEND WAKEUP:                 "z:"
 */
 
+#define MAX_DAY_PROGRAMS 7
+
 /* struct s_Data - HEX payload in s message */
 struct s_Data {
     char Base_String[6];
-    char RF_Address[3];
-    char Room_Nr[1];
-    char Day_of_week[1];
-    char Temp_and_Time[2];
-    char Temp_and_Time2[2];
-    char Temp_and_Time3[2];
-    char Temp_and_Time4[2];
-    char Temp_and_Time5[2];
-    char Temp_and_Time6[2];
-    char Temp_and_Time7[2];
+    unsigned char RF_Address[3];
+    unsigned char Room_Nr[1];
+    unsigned char Day_of_week[1];
+    unsigned char Temp_and_Time[2];
+    unsigned char Temp_and_Time2[2];
+    unsigned char Temp_and_Time3[2];
+    unsigned char Temp_and_Time4[2];
+    unsigned char Temp_and_Time5[2];
+    unsigned char Temp_and_Time6[2];
+    unsigned char Temp_and_Time7[2];
 };
 
 /* struct l_Data - contains only CR LF terminator for q message */
@@ -222,6 +238,12 @@ struct l_Data {
     char CRLF[2]; /* reserved for '\n\r' */
 };
 
-void dumpMAXpkt(MAX_msg_list* msg_list);
+/* Dump packet in host format */
+void dumpMAXHostpkt(MAX_msg_list* msg_list);
+/* Dump packet in network format */
+void dumpMAXNetpkt(MAX_msg_list* msg_list);
+
+int base_string_index(const char *base_string);
+const char*  base_string_code(int index);
 
 #endif /* MAXMSG_H */

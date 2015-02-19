@@ -46,8 +46,44 @@ static char* week_days[] = {
     "Friday"
 };
 
-void dumpMAXpkt(MAX_msg_list* msg_list)
+typedef struct BS{
+    char value[6];
+} BaseString;
+
+static BaseString bs_code[] = {
+                             /* temperature and mode setting */
+                             {{0x00, 0x04, 0x40, 0x00, 0x00, 0x00}},
+                             /* program data setting */
+                             {{0x00, 0x04, 0x10, 0x00, 0x00, 0x00}},
+                             /* eco mode temperature setting */
+                             {{0x00, 0x00, 0x11, 0x00, 0x00, 0x00}},
+                             /* config valve functions */
+                             {{0x00, 0x04, 0x12, 0x00, 0x00, 0x00}},
+                             /* add link partner */
+                             {{0x00, 0x00, 0x20, 0x00, 0x00, 0x00}},
+                             /* remove link partner */
+                             {{0x00, 0x00, 0x21, 0x00, 0x00, 0x00}},
+                             /* set group address */
+                             {{0x00, 0x00, 0x22, 0x00, 0x00, 0x00}}
+                         };
+
+static char* bs_name[] = {
+                             "temperature and mode",
+                             "program data",
+                             "eco mode temperature",
+                             "config valve functions",
+                             "add link partner",
+                             "remove link partner",
+                             "set group address"
+                         };
+
+/* Declare this as extern to avoid make it public in the headers */
+extern int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list);
+
+/* Dump packet in host format */
+void dumpMAXHostpkt(MAX_msg_list* msg_list)
 {
+    char buf[1024];
     while (msg_list != NULL) {
         char* md = msg_list->MAX_msg->data;
         printf("Message type %c\n", msg_list->MAX_msg->type);
@@ -59,18 +95,23 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                     int hour, minutes;
                     char tmp[16];
                     struct H_Data *H_D = (struct H_Data*)md;
-                    printf("\tSerial no           %s\n",
-                            H_D->Serial_number);
-                    printf("\tRF address          %s\n",
-                            H_D->RF_address);
-                    printf("\tFirmware version    %s\n",
-                            H_D->Firmware_version);
-                    printf("\tunknown             %s\n",
-                            H_D->unknown);
-                    printf("\tHTTP connection id  %s\n",
-                            H_D->HTTP_connection_id);
-                    printf("\tDuty cycle          %s\n",
-                            H_D->Duty_cycle);
+                    snprintf(buf, sizeof(H_D->Serial_number) + 1,
+                             H_D->Serial_number);
+                    printf("\tSerial no           %s\n", buf);
+                    snprintf(buf, sizeof(H_D->RF_address) + 1,
+                             H_D->RF_address);
+                    printf("\tRF address          %s\n", buf);
+                    snprintf(buf, sizeof(H_D->Firmware_version) + 1,
+                             H_D->Firmware_version);
+                    printf("\tFirmware version    %s\n", buf);
+                    snprintf(buf, sizeof(H_D->unknown) + 1, H_D->unknown);
+                    printf("\tunknown             %s\n", buf);
+                    snprintf(buf, sizeof(H_D->HTTP_connection_id),
+                             H_D->HTTP_connection_id);
+                    printf("\tHTTP connection id  %s\n", buf);
+                    snprintf(buf, sizeof(H_D->Duty_cycle) + 1,
+                             H_D->Duty_cycle);
+                    printf("\tDuty cycle          %s\n", buf);
                     printf("\tFree Memory Slots   %d\n",
                             (int) strtol(H_D->Free_Memory_Slots, NULL, 16));
                     memcpy(tmp, H_D->Cube_date, 2);
@@ -91,15 +132,19 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                     tmp[2] = '\0';
                     minutes = strtol(tmp, NULL, 16);
                     printf("\tCube time           %02d:%02d\n", hour, minutes);
-                    printf("\tState Cube Time     %s\n", H_D->State_Cube_Time);
-                    printf("\tNTP Counter         %s\n", H_D->NTP_Counter);
+                    snprintf(buf, sizeof(H_D->State_Cube_Time) + 1,
+                             H_D->State_Cube_Time);
+                    printf("\tState Cube Time     %s\n", buf);
+                    snprintf(buf, sizeof(H_D->NTP_Counter) + 1,
+                             H_D->NTP_Counter);
+                    printf("\tNTP Counter         %s\n", buf);
                     break;
                 }
             case 'C':
                 {
                     struct C_Data *C_D = (struct C_Data*)md;
                     unsigned char *tmp;
-                    char buf[16], *str;
+                    char *str;
                     int val;
                     union C_Data_Device *data =
                         (union C_Data_Device*)(md + sizeof(struct C_Data));
@@ -116,13 +161,16 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                                 (union C_Data_Config*)((char*)data +
                                         sizeof(union C_Data_Device));
 
-                            printf("\tRF address          %s\n", C_D->RF_address);
+                            snprintf(buf, sizeof(C_D->RF_address) + 1,
+                                     C_D->RF_address);
+                            printf("\tRF address          %s\n", buf);
 
                             val = data->device.Data_Length[0];
                             printf("\tData Length         %d\n", val);
 
                             tmp = data->device.Address_of_device;
-                            printf("\tAddress_of_device   %x%x%x\n", tmp[0], tmp[1], tmp[2]);
+                            printf("\tAddress_of_device   %x%x%x\n",
+                                   tmp[0], tmp[1], tmp[2]);
 
                             val = data->device.Device_Type[0];
                             printf("\tDevice Type         %s\n", device_types[val]);
@@ -136,9 +184,9 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                             val = data->device.Test_Result[0];
                             printf("\tTest Result         %d\n", val);
 
-                            strncpy(buf, data->device.Serial_Number,
-                                    sizeof(data->device.Serial_Number));
-                            buf[sizeof(data->device.Serial_Number)] = '\0';
+                            snprintf(buf,
+                                     sizeof(data->device.Serial_Number) + 1,
+                                     data->device.Serial_Number);
                             printf("\tSerial Number       %s\n", buf);
 
                             fval = config->rtc.Comfort_Temperature[0] / 2.;
@@ -181,8 +229,9 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                                 (union C_Data_Config*)((char*)data +
                                         sizeof(union C_Data_Device));
 
-                            printf("\tRF address          %s\n",
-                                C_D->RF_address);
+                            snprintf(buf, sizeof(C_D->RF_address) + 1,
+                                     C_D->RF_address);
+                            printf("\tRF address          %s\n", buf);
 
                             val = data->cube.Data_Length[0];
                             printf("\tData Length         %d\n", val);
@@ -198,9 +247,9 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                             val = data->cube.Firmware_version[0];
                             printf("\tFirmware version    %d\n", val);
 
-                            strncpy(buf, data->cube.Serial_Number,
-                                    sizeof(data->cube.Serial_Number));
-                            buf[sizeof(data->cube.Serial_Number)] = '\0';
+                            snprintf(buf,
+                                     sizeof(data->cube.Serial_Number) + 1,
+                                     data->cube.Serial_Number);
                             printf("\tSerial Number       %s\n", buf);
                             
                             val = config->cubec.Is_Portal_Enabled[0];
@@ -215,6 +264,49 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
                     }
                     break;
                 }
+            case 's':
+                {
+                    struct s_Data *s_D = (struct s_Data*)md;
+                    unsigned char *tmp;
+                    float fval;
+                    uint32_t val, day, hours, mins;
+                    uint16_t ws, idx, s;
+
+                    snprintf(buf, sizeof(s_D->Base_String) + 1,
+                            s_D->Base_String);
+                    idx = base_string_index(buf);
+                    printf("\tSet                 %s\n", bs_name[idx]);
+
+                    tmp = s_D->RF_Address;
+                    printf("\tRF address          %x%x%x\n",
+                           tmp[0], tmp[1], tmp[2]);
+
+                    val = s_D->Room_Nr[0];
+                    printf("\tRoom Nr             %d\n", val);
+
+                    val = s_D->Day_of_week[0];
+                    printf("\tDay Program         %s\n", week_days[val]);
+
+                    s = 0;
+                    day = 0;
+                    while (s < MAX_DAY_PROGRAMS * 2)
+                    {
+                        fval = (s_D->Temp_and_Time[s] >> 1) / 2.;
+                        ws = (((s_D->Temp_and_Time[s] & 1) << 8) |
+                                s_D->Temp_and_Time[s + 1]) * 5;
+                        hours = ws / 60;
+                        mins = ws %60;
+                        printf("\t\t\t    %.1f until %02d:%02d\n",
+                               fval, hours, mins);
+                        s += 2;
+                        if (hours >= 24)
+                        {
+                            break;
+                        }
+                    }
+
+                    break;
+                }
             default:
                 break;
         }
@@ -222,3 +314,53 @@ void dumpMAXpkt(MAX_msg_list* msg_list)
     }
 }
 
+/* Dump packet in network format */
+void dumpMAXNetpkt(MAX_msg_list* msg_list)
+{
+    char buff[4096];
+    MAX_msg_list *tmpmsg_list = NULL;
+
+    while (msg_list != NULL) {
+        strcpy(buff, (char*)msg_list->MAX_msg);
+        parseMAXData(buff, strlen(buff), &tmpmsg_list);
+        msg_list = msg_list->next;
+    }
+    dumpMAXHostpkt(tmpmsg_list);
+    /* free the temporary allocated data */
+    free(tmpmsg_list);
+}
+
+void freeMAXpkt(MAX_msg_list* msg_list)
+{
+    MAX_msg_list *msg = NULL;
+
+    while (msg_list != NULL) {
+        msg = msg_list;
+        msg_list = msg_list->next;
+        free(msg->MAX_msg);
+    }
+}
+
+int base_string_index(const char *base_string)
+{
+    int i;
+
+    for(i = 0; i < sizeof(bs_code) / sizeof(bs_code[0]); i++)
+    {
+        if (strncmp(bs_code[i].value, base_string, BS_CODE_SZ) == 0)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+const char*  base_string_code(int index)
+{
+    if (index < 0 || index > sizeof(bs_code) / sizeof(bs_code[0]))
+    {
+       return NULL;
+    }
+    return bs_code[index].value;
+}
