@@ -101,12 +101,13 @@ device      : DEVICE STRING '{' config '}' ';' {
                     dc->config.auto_schedule = NULL;
                 }
                 dc->rf_address = strtol($2, &endptr, 16);
-                free($2);
                 if (*endptr != '\0')
                 {
+                    free($2);
                     yyerror("invalid value for temperature");
                     YYERROR;
                 }
+                free($2);
 #ifdef MAX_PARSER_DEBUG
                 printf("device %x config OK!\n", dc->rf_address);
 #endif
@@ -164,12 +165,13 @@ param       : ROOM STRING ';' {
                 dp = (struct devparam*) malloc(sizeof(struct devparam));
                 dp->ptype = RoomId;
                 dp->param.room_id = (uint32_t) strtol($2, &endptr, 10);
-                free($2);
                 if (*endptr != '\0')
                 {
-                    yyerror("invalid value for temperature");
+                    free($2);
+                    yyerror("invalid value for room");
                     YYERROR;
                 }
+                free($2);
 #ifdef MAX_PARSER_DEBUG
                 printf("room id: %d\n", dp->param.room_id);
 #endif
@@ -182,12 +184,13 @@ param       : ROOM STRING ';' {
                 dp = (struct devparam*) malloc(sizeof(struct devparam));
                 dp->ptype = Comfort;
                 dp->param.comfort_temp = (uint32_t) strtof($2, &endptr);
-                free($2);
                 if (*endptr != '\0')
                 {
+                    free($2);
                     yyerror("invalid value for temperature");
                     YYERROR;
                 }
+                free($2);
 #ifdef MAX_PARSER_DEBUG
                 printf("comfort temp: %.1f\n", dp->param.comfort_temp);
 #endif
@@ -200,12 +203,13 @@ param       : ROOM STRING ';' {
                 dp = (struct devparam*) malloc(sizeof(struct devparam));
                 dp->ptype = Eco;
                 dp->param.eco_temp = (uint32_t) strtof($2, &endptr);
-                free($2);
                 if (*endptr != '\0')
                 {
+                    free($2);
                     yyerror("invalid value for temperature");
                     YYERROR;
                 }
+                free($2);
 #ifdef MAX_PARSER_DEBUG
                 printf("eco temp: %.1f\n", dp->param.eco_temp);
 #endif
@@ -270,17 +274,19 @@ program     : /* empty */ { $$ = NULL; }
 
                 pm = (struct program*) malloc(sizeof(struct program));
                 pm->temperature = strtof($2, &s);
-                free($2);
                 if (*s != '\0')
                 {
+                    free($2);
                     yyerror("invalid value for temperature");
                     YYERROR;
                 }
+                free($2);
                 s = strchr($3, ':');
                 if (s != NULL)
                 {
                     char *endptr1, *endptr2;
                     *s = '\0';
+                    s++;
                     pm->hour = (uint32_t) strtol($3, &endptr1, 10);
                     pm->minutes = (uint32_t) strtol(s, &endptr2, 10);
                     if (*endptr1 != '\0' || *endptr2 != '\0')
@@ -413,11 +419,12 @@ int yylex(void)
 
     /* Ignore comments */
     if (c == '#')
+    {
         while ((c = rev_getc(fin)) != '\n' && c != EOF)
             ; /* nothing */
+    }
 
-#define allowed_in_string(x) \
-	(isalnum(x) || x == ':' || x == '.')
+#define allowed_in_string(x) (isalnum(x) || x == ':' || x == '.')
     if (isalnum(c))
     {
         do {
