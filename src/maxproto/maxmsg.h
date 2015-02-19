@@ -76,6 +76,7 @@ typedef struct MME
 {
     struct MME *prev;
     struct MME *next;
+    size_t MAX_msg_len;
     struct MAX_message *MAX_msg;
 } MAX_msg_list;
 
@@ -243,12 +244,19 @@ struct l_Data {
 void dumpMAXHostpkt(MAX_msg_list* msg_list);
 /* Dump packet in network format */
 void dumpMAXNetpkt(MAX_msg_list* msg_list);
+/* Free all elements in a message list */
+void freeMAXpkt(MAX_msg_list **msg_list);
 
-void freeMAXpkt(MAX_msg_list* msg_list);
+/* Appends a message 'msg' to a packet (list of messages) msg_list. Return value
+ * points to the first element in the list. msg_list can be NULL, in that case
+ * there will be one element in the list after calling this function */
+MAX_msg_list* appendMAXmsg(MAX_msg_list* msg_list, struct MAX_message *msg,
+    size_t msg_len);
 
-void appendMAXmsg(MAX_msg_list* msg_list, struct MAX_message *msg);
-
+/* Returns the index of the given base string */
 int base_string_index(const char *base_string);
+/* Returns a string representing the base string situated at 'index' position in
+ * the base string array */
 const char*  base_string_code(int index);
 
 #endif /* MAXMSG_H */

@@ -81,6 +81,7 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                             sizeof(struct H_Data);
                 new->MAX_msg = malloc(H_len);
                 memcpy(new->MAX_msg, pos, H_len);
+                new->MAX_msg_len = H_len;
                 break;
             }
             case 'C':
@@ -93,6 +94,7 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                                len, off, 0, &outlen);
 
                 memcpy(new->MAX_msg, pos, off);
+                new->MAX_msg_len = off + outlen;
                 break;
             case 'L':
             case 'M':
@@ -100,6 +102,7 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
             case 'Q':
                 new->MAX_msg = malloc(tmp - pos);
                 memcpy(new->MAX_msg, pos, tmp - pos);
+                new->MAX_msg_len = tmp - pos;
                 break;
             case 's':
                 /* Calculate offset of payload */
@@ -109,6 +112,7 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                 new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
                                len, off, 0, &outlen);
                 memcpy(new->MAX_msg, pos, off);
+                new->MAX_msg_len = off + outlen;
                 break;
             default:
                 new->MAX_msg = malloc(tmp - pos);
@@ -158,24 +162,8 @@ int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list)
     char *p;
 
     while (output_msg_list != NULL) {
-        n = sizeof(struct MAX_message) - 1;
-        switch (output_msg_list->MAX_msg->type)
-        {
-            case 'l':
-                n += sizeof(struct l_Data);
-                break;
-            case 'q':
-                n += sizeof(struct q_Data);
-                break;
-            case 's':
-                n += sizeof(struct s_Data);
-                break;
-            default:
-                n = 0;
-                break;
-        }
-
         p = (char *)output_msg_list->MAX_msg;
+        n = output_msg_list->MAX_msg_len;
         while (n > 0)
         {
             res = write(connectionId, p, n);

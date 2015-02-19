@@ -42,6 +42,7 @@
 #define MAX_CONFIG_FILE "MAX.conf"
 
 #define MSG_END "\r\n" /* Message terminator sequence */
+#define MSG_END_LEN 2  /* Message terminator sequence len */
 #define MSG_TMO 2      /* Message receive timeout */
 
 enum Mode
@@ -66,6 +67,30 @@ struct send_param {
     void *data;
 };
 
+void help(const char* program)
+{
+    printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> <params>\n", program);
+    printf("\tCommands  Params\n" \
+           "\tget       status\n" \
+           "\tset       mode <auto|comfort|eco>\n" \
+           "\tset       program\n");
+}
+
+MAX_msg_list* create_quit_pkt(int connectionId)
+{
+    struct MAX_message *m_q;
+    struct q_Data *q_d;
+    size_t len;
+    
+    len = sizeof(struct MAX_message) - 1 + sizeof(struct q_Data);
+    m_q = malloc(len);
+    m_q->type = 'q';
+    m_q->colon = ':';
+    q_d = (struct q_Data*)m_q->data;
+    memcpy(q_d, MSG_END, MSG_END_LEN);
+    return appendMAXmsg(NULL, m_q, len);
+}
+
 /* param -  pointer to struct s_Data */
 int send_auto_schedule(union cfglist *cl, void *param)
 {
@@ -74,11 +99,10 @@ int send_auto_schedule(union cfglist *cl, void *param)
     int temp, hour, minutes, t;
     int i, off, res;
     size_t outlen;
-    struct MAX_message *m_s, *m_l;
+    struct MAX_message *m_s;
     MAX_msg_list *msg_list = NULL;
     int connectionId = ((struct send_param*)param)->connectionId;
     struct s_Data *s_Data = (struct s_Data*)((struct send_param*)param)->data;
-    struct l_Data *l_d;
 
     if (cl == NULL)
     {
@@ -124,47 +148,20 @@ int send_auto_schedule(union cfglist *cl, void *param)
 
     /* Send here */
     off = sizeof(struct MAX_message) - 1;
-    m_s = (struct MAX_message*)hex_to_base64((const unsigned char*)s_Data, sizeof(*s_Data), off,
-            strlen(MSG_END) + 1, &outlen);
+    m_s = (struct MAX_message*)hex_to_base64((const unsigned char*)s_Data,
+           sizeof(*s_Data), off, MSG_END_LEN, &outlen);
     m_s->type = 's';
     m_s->colon = ':';
-    strcpy(&m_s->data[outlen], MSG_END);
-    msg_list = (MAX_msg_list*)malloc(sizeof(MAX_msg_list));
-    msg_list->MAX_msg = m_s;
-    msg_list->prev = NULL;
-    msg_list->next = NULL;
-    /* ?????? */
-    m_l = malloc(sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
-    m_l->type = 'l';
-    m_l->colon = ':';
-    l_d = (struct l_Data*)m_l->data;
-    memcpy(l_d, MSG_END, sizeof(MSG_END));
-    appendMAXmsg(msg_list, m_l);
+    memcpy(&m_s->data[outlen], MSG_END, MSG_END_LEN);
+    msg_list = appendMAXmsg(NULL, m_s, off + outlen + MSG_END_LEN);
 #ifdef MAX_DEBUG
     dumpMAXNetpkt(msg_list);
 #endif
     /* Send message */
     res = MAXMsgSend(connectionId, msg_list);
-    freeMAXpkt(msg_list);
+    freeMAXpkt(&msg_list);
+    
     return res;
-#if 0
-#endif
-#if 0
-    int sockfd = 0, n = 0;
-    struct MAX_message *m_s;
-    struct l_Data *l_d;
-    m_s = create_s_cmd(rs->device_config, &n);
-    write(sockfd, m_s, n);
-    free(m_s);
-    m_l = malloc(sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
-    m_l->type = 'l';
-    m_l->colon = ':';
-    l_d = (struct l_Data*)m_l->data;
-    memcpy(l_d, MSG_END, sizeof(MSG_END));
-    write(sockfd, m_l, sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
-    free(m_l);
-#endif
-    return 0;
 }
 
 int send_ruleset(union cfglist *cl, void *param)
@@ -215,15 +212,6 @@ int send_ruleset(union cfglist *cl, void *param)
     walklist((union cfglist*)as, send_auto_schedule, param);
 
     return 0;
-}
-
-void help(const char* program)
-{
-    printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> <params>\n", program);
-    printf("\tCommands  Params\n" \
-           "\tget       status\n" \
-           "\tset       mode <auto|comfort|eco>\n" \
-           "\tset       program\n");
 }
 
 int read_config(struct ruleset **ruleset)
@@ -286,11 +274,33 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
 #ifdef MAX_DEBUG
     dumpMAXHostpkt(msg_list);
 #endif
+    freeMAXpkt(&msg_list);
 
     /* Pack some params needed to send function */
     send_param.connectionId = connectionId;
-
+    /* Send program configuration */
     walklist((union cfglist*)rs, send_ruleset, &send_param);
+
+    /* Wait for S response */
+    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        return 1;
+    }
+#ifdef MAX_DEBUG
+    dumpMAXHostpkt(msg_list);
+#endif
+    freeMAXpkt(&msg_list);
+
+    /* Send 'q' (quit) command*/
+    msg_list = create_quit_pkt(connectionId);
+    /* Wait for Hello message */
+    if (MAXMsgSend(connectionId, msg_list) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        /* Don't return here, call MAXDisconnect */
+    }
+    freeMAXpkt(&msg_list);
 
     if (MAXDisconnect(connectionId) < 0)
     {

@@ -279,7 +279,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     struct s_Data *s_D = (struct s_Data*)md;
                     unsigned char *tmp;
                     float fval;
-                    uint32_t val, day, hours, mins;
+                    uint32_t val, hours, mins;
                     uint16_t ws, idx, s;
 
                     printf(">>>>>>>>>>>>>>>>>>>> TX >>>>>>>>>>>>>>>>>>>>\n");
@@ -299,7 +299,6 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     printf("\tDay Program         %s\n", week_days[val]);
 
                     s = 0;
-                    day = 0;
                     while (s < MAX_CMD_SETPOINTS * 2)
                     {
                         fval = (s_D->Temp_and_Time[s] >> 1) / 2.;
@@ -347,28 +346,38 @@ void dumpMAXNetpkt(MAX_msg_list* msg_list)
     free(tmpmsg_list);
 }
 
-void freeMAXpkt(MAX_msg_list* msg_list)
+void freeMAXpkt(MAX_msg_list** msg_list)
 {
-    MAX_msg_list *msg = NULL;
+    MAX_msg_list *msg = NULL, *iter = *msg_list;
 
-    while (msg_list != NULL) {
-        msg = msg_list;
-        msg_list = msg_list->next;
+    while (iter != NULL) {
+        msg = iter;
+        iter = iter->next;
         free(msg->MAX_msg);
         free(msg);
     }
+    *msg_list = NULL;
 }
 
-void appendMAXmsg(MAX_msg_list* msg_list, struct MAX_message *msg)
+MAX_msg_list* appendMAXmsg(MAX_msg_list* msg_list, struct MAX_message *msg,
+    size_t msg_len)
 {
     MAX_msg_list *newmsg = (MAX_msg_list*)malloc(sizeof(MAX_msg_list));
+    MAX_msg_list *resmsg = newmsg;
 
-    while (msg_list->next != NULL) {
-        msg_list = msg_list->next;
+    if (msg_list != NULL)
+    {
+        resmsg = msg_list;
+        while (msg_list->next != NULL) {
+            msg_list = msg_list->next;
+        }
+        msg_list->next = newmsg;
     }
     newmsg->MAX_msg = msg;
+    newmsg->MAX_msg_len = msg_len;
     newmsg->prev = msg_list;
-    msg_list->next = newmsg;
+    newmsg->next = NULL;
+    return resmsg;
 }
 
 int base_string_index(const char *base_string)
