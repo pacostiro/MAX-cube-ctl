@@ -211,7 +211,8 @@ union C_Data_Config {
  * OUTGOING SEND WAKEUP:                 "z:"
 */
 
-#define MAX_DAY_PROGRAMS 7
+/* Maximum number of set points per s command */
+#define MAX_CMD_SETPOINTS 7
 
 /* struct s_Data - HEX payload in s message */
 struct s_Data {
@@ -242,6 +243,10 @@ struct l_Data {
 void dumpMAXHostpkt(MAX_msg_list* msg_list);
 /* Dump packet in network format */
 void dumpMAXNetpkt(MAX_msg_list* msg_list);
+
+void freeMAXpkt(MAX_msg_list* msg_list);
+
+void appendMAXmsg(MAX_msg_list* msg_list, struct MAX_message *msg);
 
 int base_string_index(const char *base_string);
 const char*  base_string_code(int index);

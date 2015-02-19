@@ -26,7 +26,8 @@
 
 #include "maxmsg.h"
 
-#define MAX_SCHED 13
+/* Maximum number of set points per day */
+#define MAX_DAY_SETPOINTS 13
 
 static char* device_types[] = {
     "Cube",
@@ -95,6 +96,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     int hour, minutes;
                     char tmp[16];
                     struct H_Data *H_D = (struct H_Data*)md;
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     snprintf(buf, sizeof(H_D->Serial_number) + 1,
                              H_D->Serial_number);
                     printf("\tSerial no           %s\n", buf);
@@ -138,6 +140,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     snprintf(buf, sizeof(H_D->NTP_Counter) + 1,
                              H_D->NTP_Counter);
                     printf("\tNTP Counter         %s\n", buf);
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     break;
                 }
             case 'C':
@@ -149,6 +152,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     union C_Data_Device *data =
                         (union C_Data_Device*)(md + sizeof(struct C_Data));
 
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     switch (data->device.Device_Type[0])
                     {
                         case RadiatorThermostat:
@@ -173,7 +177,8 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                                    tmp[0], tmp[1], tmp[2]);
 
                             val = data->device.Device_Type[0];
-                            printf("\tDevice Type         %s\n", device_types[val]);
+                            printf("\tDevice Type         %s\n",
+                                   device_types[val]);
 
                             val = data->device.Room_ID[0];
                             printf("\tRoom ID             %d\n", val);
@@ -197,23 +202,27 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             printf("\tTemperature offset  %.1f\n", fval);
                             day = config->rtc.Decalcification[0] >> 5;
                             hours = (config->rtc.Decalcification[0] & 0b11111);
-                            printf("\tDecalcification     %s %2d:00\n", week_days[day], hours);
-                            memcpy(&ws, &config->rtc.Weekly_Program[0], sizeof(ws));
+                            printf("\tDecalcification     %s %2d:00\n",
+                                   week_days[day], hours);
+                            memcpy(&ws, &config->rtc.Weekly_Program[0],
+                                   sizeof(ws));
                             s = 0;
                             day = 0;
                             printf("\tWeekly Program\n");
                             while (s < sizeof(config->rtc.Weekly_Program))
                             {
-                                fval = (config->rtc.Weekly_Program[s] >> 1) / 2.;
-                                ws = (((config->rtc.Weekly_Program[s] & 1) << 8) |
-                                        config->rtc.Weekly_Program[s + 1]) * 5;
+                                fval = (config->rtc.Weekly_Program[s] >> 1) /
+                                       2.;
+                                ws = (((config->rtc.Weekly_Program[s] & 1) << 8)
+                                     | config->rtc.Weekly_Program[s + 1]) * 5;
                                 hours = ws / 60;
                                 mins = ws %60;
-                                printf("\t\t%-10s  %.1f until %02d:%02d\n", week_days[day],
-                                        fval, hours, mins);
+                                printf("\t\t%-10s  %.1f until %02d:%02d\n",
+                                       week_days[day], fval, hours, mins);
                                 if (hours >= 24)
                                 {
-                                    s = (s / (MAX_SCHED * 2) + 1) * MAX_SCHED * 2;
+                                    s = (s / (MAX_DAY_SETPOINTS * 2) + 1) *
+                                        MAX_DAY_SETPOINTS* 2;
                                     day++;
                                 }
                                 else
@@ -262,6 +271,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                         default:
                             break;
                     }
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     break;
                 }
             case 's':
@@ -272,6 +282,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     uint32_t val, day, hours, mins;
                     uint16_t ws, idx, s;
 
+                    printf(">>>>>>>>>>>>>>>>>>>> TX >>>>>>>>>>>>>>>>>>>>\n");
                     snprintf(buf, sizeof(s_D->Base_String) + 1,
                             s_D->Base_String);
                     idx = base_string_index(buf);
@@ -289,7 +300,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
 
                     s = 0;
                     day = 0;
-                    while (s < MAX_DAY_PROGRAMS * 2)
+                    while (s < MAX_CMD_SETPOINTS * 2)
                     {
                         fval = (s_D->Temp_and_Time[s] >> 1) / 2.;
                         ws = (((s_D->Temp_and_Time[s] & 1) << 8) |
@@ -304,7 +315,13 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             break;
                         }
                     }
-
+                    printf(">>>>>>>>>>>>>>>>>>>> TX >>>>>>>>>>>>>>>>>>>>\n");
+                    break;
+                }
+            case 'l':
+                {
+                    printf(">>>>>>>>>>>>>>>>>>>> TX >>>>>>>>>>>>>>>>>>>>\n");
+                    printf(">>>>>>>>>>>>>>>>>>>> TX >>>>>>>>>>>>>>>>>>>>\n");
                     break;
                 }
             default:
@@ -338,7 +355,20 @@ void freeMAXpkt(MAX_msg_list* msg_list)
         msg = msg_list;
         msg_list = msg_list->next;
         free(msg->MAX_msg);
+        free(msg);
     }
+}
+
+void appendMAXmsg(MAX_msg_list* msg_list, struct MAX_message *msg)
+{
+    MAX_msg_list *newmsg = (MAX_msg_list*)malloc(sizeof(MAX_msg_list));
+
+    while (msg_list->next != NULL) {
+        msg_list = msg_list->next;
+    }
+    newmsg->MAX_msg = msg;
+    newmsg->prev = msg_list;
+    msg_list->next = newmsg;
 }
 
 int base_string_index(const char *base_string)

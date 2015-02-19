@@ -72,12 +72,13 @@ int send_auto_schedule(union cfglist *cl, void *param)
     struct auto_schedule *as;
     struct program *program;
     int temp, hour, minutes, t;
-    int i, off;
+    int i, off, res;
     size_t outlen;
-    struct MAX_message *m_s;
-    MAX_msg_list msg_list;
+    struct MAX_message *m_s, *m_l;
+    MAX_msg_list *msg_list = NULL;
     int connectionId = ((struct send_param*)param)->connectionId;
     struct s_Data *s_Data = (struct s_Data*)((struct send_param*)param)->data;
+    struct l_Data *l_d;
 
     if (cl == NULL)
     {
@@ -115,7 +116,7 @@ int send_auto_schedule(union cfglist *cl, void *param)
         s_Data->Temp_and_Time[i + 1] = (t & 0xff);
         i += 2;
         program = program->next;
-        if (i >= (MAX_DAY_PROGRAMS * 2))
+        if (i >= (MAX_CMD_SETPOINTS * 2))
         {
             break;
         }
@@ -128,15 +129,25 @@ int send_auto_schedule(union cfglist *cl, void *param)
     m_s->type = 's';
     m_s->colon = ':';
     strcpy(&m_s->data[outlen], MSG_END);
-    msg_list.MAX_msg = m_s;
-    msg_list.prev = NULL;
-    msg_list.next = NULL;
+    msg_list = (MAX_msg_list*)malloc(sizeof(MAX_msg_list));
+    msg_list->MAX_msg = m_s;
+    msg_list->prev = NULL;
+    msg_list->next = NULL;
+    /* ?????? */
+    m_l = malloc(sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
+    m_l->type = 'l';
+    m_l->colon = ':';
+    l_d = (struct l_Data*)m_l->data;
+    memcpy(l_d, MSG_END, sizeof(MSG_END));
+    appendMAXmsg(msg_list, m_l);
 #ifdef MAX_DEBUG
-    dumpMAXNetpkt(&msg_list);
+    dumpMAXNetpkt(msg_list);
 #endif
     /* Send message */
+    res = MAXMsgSend(connectionId, msg_list);
+    freeMAXpkt(msg_list);
+    return res;
 #if 0
-    return MAXMsgSend(connectionId, &msg_list);
 #endif
 #if 0
     int sockfd = 0, n = 0;
