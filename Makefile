@@ -8,7 +8,7 @@ INCLUDES += -I./src/maxproto
 PARSEY = src/maxctl/parse.y
 PARSER = src/maxctl/parse.c
 SRCS = src/maxproto/max.c src/maxproto/base64.c src/maxproto/maxmsg.c
-SRCS += src/maxctl/maxctl.c $(PARSER)
+SRCS += src/maxctl/maxctl.c src/maxctl/max_parser.c $(PARSER)
 
 OBJS = $(SRCS:.c=.o)
 

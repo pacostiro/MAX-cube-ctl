@@ -29,20 +29,7 @@
 #include "max.h"
 #include "base64.h"
 
-static void nullifyCommas(char *start, char* end)
-{
-    if (start == NULL || end == NULL)
-        return;
-    while(start < end)
-    {
-        if (*start == ',')
-            *start = '\0';
-        start++;
-    }
-    *end = '\0';
-}
-
-static int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
+int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
 {
     char *pos = MAXData, *tmp;
     char *end = MAXData + size - 1;
@@ -68,7 +55,6 @@ static int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
             errno = EBADMSG;
             return -1;
         }
-        nullifyCommas(pos, tmp);
         tmp += 2;
         new = (MAX_msg_list*)malloc(sizeof(MAX_msg_list));
         if (*msg_list == NULL)
@@ -98,7 +84,7 @@ static int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                 break;
             }
             case 'C':
-                /* Calculate offset of second field (C_Data_Device)*/
+                /* Calculate offset of second field (C_Data_Device) */
                 off = sizeof(struct MAX_message) - 1 + sizeof(struct C_Data);
                 /* Move to second field */
                 /* Calculate length of second field */
@@ -112,6 +98,18 @@ static int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
             case 'M':
             case 'S':
             case 'Q':
+                new->MAX_msg = malloc(tmp - pos);
+                memcpy(new->MAX_msg, pos, tmp - pos);
+                break;
+            case 's':
+                /* Calculate offset of payload */
+                off = sizeof(struct MAX_message) - 1;
+                /* Calculate length of data */
+                len = tmp - 2 - pos - off;
+                new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
+                               len, off, 0, &outlen);
+                memcpy(new->MAX_msg, pos, off);
+                break;
             default:
                 new->MAX_msg = malloc(tmp - pos);
                 memcpy(new->MAX_msg, pos, tmp - pos);
@@ -156,6 +154,40 @@ int MAXDisconnect(int connectionId)
 
 int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list)
 {
+    int n, res;
+    char *p;
+
+    while (output_msg_list != NULL) {
+        n = sizeof(struct MAX_message) - 1;
+        switch (output_msg_list->MAX_msg->type)
+        {
+            case 'l':
+                n += sizeof(struct l_Data);
+                break;
+            case 'q':
+                n += sizeof(struct q_Data);
+                break;
+            case 's':
+                n += sizeof(struct s_Data);
+                break;
+            default:
+                n = 0;
+                break;
+        }
+
+        p = (char *)output_msg_list->MAX_msg;
+        while (n > 0)
+        {
+            res = write(connectionId, p, n);
+            if (res < 0)
+            {
+                return -1;
+            }
+            n -= res;
+            p += res;
+        }
+        output_msg_list = output_msg_list->next;
+    }
     return 0;
 }
 

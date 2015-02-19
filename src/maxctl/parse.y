@@ -15,7 +15,8 @@ static FILE  *fin = NULL;
 static int   lineno = 1;
 static int   col = 1;
 static int   errors = 0;
-static struct ruleset *ruleset = NULL;
+
+static struct ruleset **max_ruleset = NULL;
 
 int yyerror(char *message);
 int yyparse(void);
@@ -81,7 +82,7 @@ ruleset     : /* empty */ { $$ = NULL; }
                 else
                 {
                     /* This is the set of the rule set */
-                    ruleset = rs;
+                    *max_ruleset = rs;
                     $$ = rs;
                 }
             }
@@ -96,6 +97,8 @@ device      : DEVICE STRING '{' config '}' ';' {
                 {
                     dc = (struct device_config*)
                         malloc(sizeof(struct device_config));
+                    dc->config.room_id = NOT_CONFIGURED_UL;
+                    dc->config.auto_schedule = NULL;
                 }
                 dc->rf_address = strtol($2, &endptr, 16);
                 free($2);
@@ -120,6 +123,10 @@ config      : /* empty */ { $$ = NULL; }
                 {
                     dc = (struct device_config*)
                         malloc(sizeof(struct device_config));
+                    dc->config.room_id = NOT_CONFIGURED_UL;
+                    dc->config.eco_temp = NOT_CONFIGURED_F;
+                    dc->config.comfort_temp = NOT_CONFIGURED_F;
+                    dc->config.auto_schedule = NULL;
                 }
                 else
                 {
@@ -410,7 +417,7 @@ int yylex(void)
             ; /* nothing */
 
 #define allowed_in_string(x) \
-	(isalnum(x) || x == ':')
+	(isalnum(x) || x == ':' || x == '.')
     if (isalnum(c))
     {
         do {
@@ -460,13 +467,18 @@ int yyerror(char *message)
 }
 
 int
-parse_file(FILE *input)
+parse_file(FILE *input, struct ruleset **ruleset)
 {
     fin = input;
     lineno = 1;
     col = 1;
     errors = 0;
-    ruleset = NULL;
+    if (ruleset == NULL)
+    {
+        fprintf(stderr, "parse_file ruleset argument cannot be NULL\n");
+        return -1;
+    }
+    max_ruleset = ruleset;
 
     yyparse();
 

@@ -46,68 +46,164 @@
 
 enum Mode
 {
-    Auto = 0,
-    Comfort = 1,
-    Eco = 2
+    AutoMode = 0,
+    ComfortMode = 1,
+    EcoMode = 2
 };
 
-struct MAX_message* create_s_cmd(int *len)
+static char* week_days[] = {
+    "Saturday",
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday"
+};
+
+struct send_param {
+    int connectionId;
+    void *data;
+};
+
+/* param -  pointer to struct s_Data */
+int send_auto_schedule(union cfglist *cl, void *param)
 {
-    struct s_Data s_Data;
+    struct auto_schedule *as;
+    struct program *program;
+    int temp, hour, minutes, t;
+    int i, off;
+    size_t outlen;
     struct MAX_message *m_s;
-    size_t outlen, off;
-    int temp, hours, minutes, t;
+    MAX_msg_list msg_list;
+    int connectionId = ((struct send_param*)param)->connectionId;
+    struct s_Data *s_Data = (struct s_Data*)((struct send_param*)param)->data;
 
-    s_Data.Base_String[0] = 0x00;
-    s_Data.Base_String[1] = 0x04;
-    s_Data.Base_String[2] = 0x10;
-    s_Data.Base_String[3] = 0x00;
-    s_Data.Base_String[4] = 0x00;
-    s_Data.Base_String[5] = 0x00;
+    if (cl == NULL)
+    {
+        return -1;
+    }
 
-    s_Data.RF_Address[0] = 0x11;
-    s_Data.RF_Address[1] = 0x32;
-    s_Data.RF_Address[2] = 0xb5;
+    as = &cl->auto_schedule;
+    if (as->day < 0 || as->day >= sizeof(week_days) / sizeof(week_days[0]))
+    {
+        return -1;
+    }
 
-    s_Data.Room_Nr[0] = 0x02;
-    s_Data.Day_of_week[0] = 1;
+    s_Data->Day_of_week[0] = as->day;
+#ifdef MAX_DEBUG
+    printf("    packing schedule\n");
+#endif
+    program = as->schedule;
+    if (program == NULL)
+    {
+#ifdef MAX_DEBUG
+        printf("    empty schedule, send nothing\n");
+#endif
+        return 0;
+    }
+    /* Pack the daily program here */
+    i = 0;
+    while (program != NULL)
+    {
+        temp = (int)(program->temperature * 2);
+        hour = program->hour;
+        minutes = program->minutes;
+        t = (60 * hour + minutes) / 5;
+        /* Use first fiels Temp_and_Time to write into next as well */
+        s_Data->Temp_and_Time[i] = ((temp << 1) | ((t >> 8) & (0x1)));
+        s_Data->Temp_and_Time[i + 1] = (t & 0xff);
+        i += 2;
+        program = program->next;
+        if (i >= (MAX_DAY_PROGRAMS * 2))
+        {
+            break;
+        }
+    }
 
-    temp = 20, hours = 6, minutes = 30;
-    t = (60 * hours + minutes) / 5;
-    s_Data.Temp_and_Time[0] = (((temp * 2) << 1) | ((t >> 8) & (0x1)));
-    s_Data.Temp_and_Time[1] = (t & 0xff);
-
-    temp = 22, hours = 24, minutes = 00;
-    t = (60 * hours + minutes) / 5;
-    s_Data.Temp_and_Time2[0] = (((temp * 2) << 1) | ((t >> 8) & (0x1)));
-    s_Data.Temp_and_Time2[1] = (t & 0xff);
-
-    s_Data.Temp_and_Time3[0] = 0;
-    s_Data.Temp_and_Time3[1] = 0;
-
-    s_Data.Temp_and_Time4[0] = 0;
-    s_Data.Temp_and_Time4[1] = 0;
-
-    s_Data.Temp_and_Time5[0] = 0;
-    s_Data.Temp_and_Time5[1] = 0;
-
-    s_Data.Temp_and_Time6[0] = 0;
-    s_Data.Temp_and_Time6[1] = 0;
-
-    s_Data.Temp_and_Time7[0] = 0;
-    s_Data.Temp_and_Time7[1] = 0;
-
+    /* Send here */
     off = sizeof(struct MAX_message) - 1;
-    m_s = (struct MAX_message*)hex_to_base64((const unsigned char*)&s_Data, sizeof(s_Data), off,
+    m_s = (struct MAX_message*)hex_to_base64((const unsigned char*)s_Data, sizeof(*s_Data), off,
             strlen(MSG_END) + 1, &outlen);
     m_s->type = 's';
     m_s->colon = ':';
-    strcpy(&m_s->data[off + outlen], MSG_END);
-    printf("Message s\n%s\n off:%d outlen: %d", (char*)m_s, (int)off, (int)outlen);
+    strcpy(&m_s->data[outlen], MSG_END);
+    msg_list.MAX_msg = m_s;
+    msg_list.prev = NULL;
+    msg_list.next = NULL;
+#ifdef MAX_DEBUG
+    dumpMAXNetpkt(&msg_list);
+#endif
+    /* Send message */
+#if 0
+    return MAXMsgSend(connectionId, &msg_list);
+#endif
+#if 0
+    int sockfd = 0, n = 0;
+    struct MAX_message *m_s;
+    struct l_Data *l_d;
+    m_s = create_s_cmd(rs->device_config, &n);
+    write(sockfd, m_s, n);
+    free(m_s);
+    m_l = malloc(sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
+    m_l->type = 'l';
+    m_l->colon = ':';
+    l_d = (struct l_Data*)m_l->data;
+    memcpy(l_d, MSG_END, sizeof(MSG_END));
+    write(sockfd, m_l, sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
+    free(m_l);
+#endif
+    return 0;
+}
 
-    *len = off + outlen + strlen(MSG_END);
+int send_ruleset(union cfglist *cl, void *param)
+{
+    struct config *config;
+    struct auto_schedule *as;
+    struct s_Data s_Data;
+    struct send_param *send_param = param;
 
-    return m_s;
+    /* Initialize base string */
+    memset(&s_Data, 0, sizeof(s_Data));
+    memcpy(s_Data.Base_String,  base_string_code(ProgramData), BS_CODE_SZ);
+
+    if (cl == NULL || cl->ruleset.device_config == NULL)
+    {
+        return -1;
+    }
+    config = &cl->ruleset.device_config->config;
+#ifdef MAX_DEBUG
+    printf("sending device %x\n", cl->ruleset.device_config->rf_address);
+#endif
+    if (config->room_id == NOT_CONFIGURED_UL)
+    {
+#ifdef MAX_DEBUG
+        printf("empty configuration, send nothing\n");
+#endif
+        return 0;
+    }
+    s_Data.RF_Address[0] =
+        (cl->ruleset.device_config->rf_address >> 16) & 0xff;
+    s_Data.RF_Address[1] =
+        (cl->ruleset.device_config->rf_address >> 8) & 0xff;
+    s_Data.RF_Address[2] =
+        cl->ruleset.device_config->rf_address & 0xff;
+
+    s_Data.Room_Nr[0] = cl->ruleset.device_config->config.room_id;
+
+    as = config->auto_schedule;
+    if (as == NULL)
+    {
+#ifdef MAX_DEBUG
+        printf("    empty schedule, send nothing\n");
+#endif
+    }
+
+    /* Join data to send params */
+    send_param->data = (void*)&s_Data;
+    walklist((union cfglist*)as, send_auto_schedule, param);
+
+    return 0;
 }
 
 void help(const char* program)
@@ -115,13 +211,14 @@ void help(const char* program)
     printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> <params>\n", program);
     printf("\tCommands  Params\n" \
            "\tget       status\n" \
-           "\tset       mode <auto|comfort|eco>\n");
+           "\tset       mode <auto|comfort|eco>\n" \
+           "\tset       program\n");
 }
 
-int read_config()
+int read_config(struct ruleset **ruleset)
 {
     FILE *fp = fopen(MAX_CONFIG_FILE, "r");
-    int res = parse_file(fp);
+    int res = parse_file(fp, ruleset);
 
     fclose(fp);
 
@@ -134,49 +231,93 @@ int get(const char* program, struct sockaddr_in* serv_addr,
     return 0;
 }
 
-int set(const char* program, struct sockaddr_in* serv_addr,
+int set_program(const char* program, struct sockaddr_in* serv_addr,
         int argc, char *argv[])
 {
-    int sockfd = 0, n = 0;
-    MAX_msg_list* msg_list = NULL;
-    struct MAX_message *m_s, *m_l;
-    struct l_Data *l_d;
-    int mode;
+    struct ruleset *rs;
     int connectionId;
+    MAX_msg_list* msg_list = NULL;
+    struct send_param send_param;
 
-    if (argc != 3)
+    if (argc != 1)
     {
         help(program);
         return 1;
     }
 
-    if (strcmp(argv[1], "mode") != 0)
+    /* Read config file */
+    if (read_config(&rs) != 0)
     {
-        printf("Error : Invalid parameter for command\n");
+        printf("Error : cannot read configuration\n");
+        return 1;
+    }
+
+#ifdef MAX_DEBUG
+    /* Dump rules to check configuration */
+    walklist((union cfglist*)rs, dump_ruleset, NULL);
+#endif
+
+    /* Open connection and send configuration */
+    /* Connect to cube */
+    if ((connectionId = MAXConnect((struct sockaddr*)serv_addr)) < 0)
+    {
+        printf("Error : Could not connect to MAX!cube\n");
+        return 1;
+    }
+
+    /* Wait for Hello message */
+    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        return 1;
+    }
+
+#ifdef MAX_DEBUG
+    dumpMAXHostpkt(msg_list);
+#endif
+
+    /* Pack some params needed to send function */
+    send_param.connectionId = connectionId;
+
+    walklist((union cfglist*)rs, send_ruleset, &send_param);
+
+    if (MAXDisconnect(connectionId) < 0)
+    {
+        printf("Error : Failed to close connection with MAX!cube\n");
+        return 1;
+    }
+
+    /* Free configuration data */
+    walklist((union cfglist*)rs, free_ruleset, NULL);
+
+    return 0;
+}
+
+int set_mode(const char* program, struct sockaddr_in* serv_addr,
+        int argc, char *argv[])
+{
+    MAX_msg_list* msg_list = NULL;
+    int mode;
+    int connectionId;
+
+    if (argc != 2)
+    {
         help(program);
         return 1;
     }
 
     if (strcmp(argv[1], "auto") == 0)
     {
-        mode = Auto;
+        mode = AutoMode;
     }
     else if (strcmp(argv[1], "comfort") == 0)
     {
-        mode = Comfort;
+        mode = ComfortMode;
     }
     else if (strcmp(argv[1], "eco") == 0)
     {
-        mode = Eco;
+        mode = EcoMode;
     }
-
-    /* Read config file */
-    if (read_config() != 0)
-    {
-        printf("Error : Invalid configuration file\n");
-        return 1;
-    }
-return 0;
 
     /* Connect to cube */
     if ((connectionId = MAXConnect((struct sockaddr*)serv_addr)) < 0)
@@ -193,7 +334,7 @@ return 0;
     }
 
 #ifdef MAX_DEBUG
-    dumpMAXpkt(msg_list);
+    dumpMAXHostpkt(msg_list);
 #endif
 
     if (MAXDisconnect(connectionId) < 0)
@@ -202,22 +343,25 @@ return 0;
         return 1;
     }
 
-return 0;
-
-/*
-set:
-*/
-    m_s = create_s_cmd(&n);
-    write(sockfd, m_s, n);
-    free(m_s);
-    m_l = malloc(sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
-    m_l->type = 'l';
-    m_l->colon = ':';
-    l_d = (struct l_Data*)m_l->data;
-    memcpy(l_d, MSG_END, sizeof(MSG_END));
-    write(sockfd, m_l, sizeof(struct MAX_message) - 1 + sizeof(struct l_Data));
-    free(m_l);
     return 0;
+}
+
+int set(const char* program, struct sockaddr_in* serv_addr,
+        int argc, char *argv[])
+{
+    if (strcmp(argv[1], "mode") == 0)
+    {
+        return set_mode(program, serv_addr, argc - 1, &argv[1]);
+    }
+
+    if (strcmp(argv[1], "program") == 0)
+    {
+        return set_program(program, serv_addr, argc - 1, &argv[1]);
+    }
+
+    printf("Error : Invalid parameter for command\n");
+    help(program);
+    return 1;
 }
 
 int main(int argc, char *argv[])
