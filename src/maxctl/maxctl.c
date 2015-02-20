@@ -237,10 +237,72 @@ int read_config(struct ruleset **ruleset)
     return res;
 }
 
+int get_status(const char* program, struct sockaddr_in* serv_addr,
+        int argc, char *argv[])
+{
+    MAX_msg_list* msg_list = NULL;
+    int connectionId;
+ 
+    if (argc != 1)
+    {
+        help(program);
+        return 1;
+    }
+
+    /* Open connection and send configuration */
+    /* Connect to cube */
+    if ((connectionId = MAXConnect((struct sockaddr*)serv_addr)) < 0)
+    {
+        printf("Error : Could not connect to MAX!cube\n");
+        return 1;
+    }
+
+    /* Wait for Hello message */
+    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        return 1;
+    }
+
+    dumpMAXHostpkt(msg_list);
+    freeMAXpkt(&msg_list);
+
+    /* Send 'q' (quit) command*/
+    msg_list = create_quit_pkt(connectionId);
+    /* Wait for Hello message */
+    if (MAXMsgSend(connectionId, msg_list) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        /* Don't return here, call MAXDisconnect */
+    }
+    freeMAXpkt(&msg_list);
+
+    if (MAXDisconnect(connectionId) < 0)
+    {
+        printf("Error : Failed to close connection with MAX!cube\n");
+        return 1;
+    }
+
+    return 0;
+}
+
 int get(const char* program, struct sockaddr_in* serv_addr,
         int argc, char *argv[])
 {
-    return 0;
+    if (argc < 2)
+    {
+        help(program);
+        return 1;
+    }
+
+    if (strcmp(argv[1], "status") == 0)
+    {
+        return get_status(program, serv_addr, argc - 1, &argv[1]);
+    }
+
+    printf("Error : Invalid parameter for command\n");
+    help(program);
+    return 1;
 }
 
 int set_program(const char* program, struct sockaddr_in* serv_addr,
@@ -390,6 +452,12 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
 int set(const char* program, struct sockaddr_in* serv_addr,
         int argc, char *argv[])
 {
+    if (argc < 2)
+    {
+        help(program);
+        return 1;
+    }
+
     if (strcmp(argv[1], "mode") == 0)
     {
         return set_mode(program, serv_addr, argc - 1, &argv[1]);
