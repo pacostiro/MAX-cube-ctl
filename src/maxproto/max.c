@@ -49,13 +49,13 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
             errno = EBADMSG;
             return -1;
         }
-        tmp = strstr(pos, "\r\n");
+        tmp = strstr(pos, MSG_END);
         if (tmp == NULL)
         {
             errno = EBADMSG;
             return -1;
         }
-        tmp += 2;
+        tmp += MSG_END_LEN;
         new = (MAX_msg_list*)malloc(sizeof(MAX_msg_list));
         if (*msg_list == NULL)
         {
@@ -89,28 +89,45 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                 off = sizeof(struct MAX_message) - 1 + sizeof(struct C_Data);
                 /* Move to second field */
                 /* Calculate length of second field */
-                len = tmp - 2 - pos - off;
+                len = tmp - MSG_END_LEN - pos - off;
                 new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
                                len, off, 0, &outlen);
-
+                if (new->MAX_msg == NULL)
+                {
+                    errno = EBADMSG;
+                    return -1;
+                }
                 memcpy(new->MAX_msg, pos, off);
                 new->MAX_msg_len = off + outlen;
                 break;
             case 'L':
             case 'M':
-            case 'S':
             case 'Q':
                 new->MAX_msg = malloc(tmp - pos);
                 memcpy(new->MAX_msg, pos, tmp - pos);
                 new->MAX_msg_len = tmp - pos;
                 break;
+            case 'S':
+            {
+                int S_len = sizeof(struct MAX_message) - 1 +
+                            sizeof(struct S_Data);
+                new->MAX_msg = malloc(S_len);
+                memcpy(new->MAX_msg, pos, S_len);
+                new->MAX_msg_len = S_len;
+                break;
+            }
             case 's':
                 /* Calculate offset of payload */
                 off = sizeof(struct MAX_message) - 1;
                 /* Calculate length of data */
-                len = tmp - 2 - pos - off;
+                len = tmp - MSG_END_LEN - pos - off;
                 new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
                                len, off, 0, &outlen);
+                if (new->MAX_msg == NULL)
+                {
+                    errno = EBADMSG;
+                    return -1;
+                }
                 memcpy(new->MAX_msg, pos, off);
                 new->MAX_msg_len = off + outlen;
                 break;

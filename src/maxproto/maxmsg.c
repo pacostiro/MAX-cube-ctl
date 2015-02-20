@@ -113,9 +113,12 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     printf("\tHTTP connection id  %s\n", buf);
                     snprintf(buf, sizeof(H_D->Duty_cycle) + 1,
                              H_D->Duty_cycle);
-                    printf("\tDuty cycle          %s\n", buf);
+                    printf("\tDuty cycle          %d%%\n",
+                           (int) strtol(buf, NULL, 16));
+                    snprintf(buf, sizeof(H_D->Free_Memory_Slots) + 1,
+                             H_D->Free_Memory_Slots);
                     printf("\tFree Memory Slots   %d\n",
-                            (int) strtol(H_D->Free_Memory_Slots, NULL, 16));
+                            (int) strtol(buf, NULL, 16));
                     memcpy(tmp, H_D->Cube_date, 2);
                     tmp[2] = '\0';
                     year = 2000 + strtol(tmp, NULL, 16);
@@ -271,6 +274,24 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                         default:
                             break;
                     }
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
+                    break;
+                }
+            case 'S':
+                {
+                    struct S_Data *S_D = (struct S_Data*)md;
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
+                    snprintf(buf, sizeof(S_D->Duty_Cycle) + 1,
+                             S_D->Duty_Cycle);
+                    printf("\tDuty Cycle          %d%%\n",
+                           (int) strtol(buf, NULL, 16));
+                    snprintf(buf, sizeof(S_D->Command_Result) + 1,
+                             S_D->Command_Result);
+                    printf("\tCommand Result      %s\n", buf);
+                    snprintf(buf, sizeof(S_D->Free_Memory_Slots) + 1,
+                             S_D->Free_Memory_Slots);
+                    printf("\tFree Memory Slots   %d\n",
+                            (int) strtol(buf, NULL, 16));
                     printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     break;
                 }

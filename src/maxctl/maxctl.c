@@ -41,8 +41,6 @@
 
 #define MAX_CONFIG_FILE "MAX.conf"
 
-#define MSG_END "\r\n" /* Message terminator sequence */
-#define MSG_END_LEN 2  /* Message terminator sequence len */
 #define MSG_TMO 2      /* Message receive timeout */
 
 enum Mode
@@ -89,6 +87,21 @@ MAX_msg_list* create_quit_pkt(int connectionId)
     q_d = (struct q_Data*)m_q->data;
     memcpy(q_d, MSG_END, MSG_END_LEN);
     return appendMAXmsg(NULL, m_q, len);
+}
+
+int eval_S_response(MAX_msg_list* msg_list)
+{
+    struct S_Data *S_D;
+    while (msg_list != NULL) {
+        S_D = (struct S_Data*)msg_list->MAX_msg->data;
+        if (S_D->Command_Result[0] != '0')
+        {
+            return -1;
+        }
+        msg_list = msg_list->next;
+    }
+
+    return 0;
 }
 
 /* param -  pointer to struct s_Data */
@@ -237,6 +250,7 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
     int connectionId;
     MAX_msg_list* msg_list = NULL;
     struct send_param send_param;
+    int result = 0;
 
     if (argc != 1)
     {
@@ -290,7 +304,13 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
 #ifdef MAX_DEBUG
     dumpMAXHostpkt(msg_list);
 #endif
+    result = eval_S_response(msg_list);
     freeMAXpkt(&msg_list);
+    if (result != 0)
+    {
+        printf("Error : 'S' command discarded\n");
+        /* Don't return here, call close session gracefully */
+    }
 
     /* Send 'q' (quit) command*/
     msg_list = create_quit_pkt(connectionId);
@@ -311,7 +331,7 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
     /* Free configuration data */
     walklist((union cfglist*)rs, free_ruleset, NULL);
 
-    return 0;
+    return result;
 }
 
 int set_mode(const char* program, struct sockaddr_in* serv_addr,

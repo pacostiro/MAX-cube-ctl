@@ -80,6 +80,13 @@ typedef struct MME
     struct MAX_message *MAX_msg;
 } MAX_msg_list;
 
+/* Message definitions
+ * ==========================================
+ * Data structures describe payload of messages in host format. Some of the
+ * messages are base64 encoded when sent over the network. Decoded messages do
+ * not contain the trailing '\r\n' anymore and neither separating comas.
+ */
+
 /*
  * Incoming messages
  * ==========================================
@@ -178,6 +185,16 @@ union C_Data_Config {
         unsigned char Valve_Offset[1];
         unsigned char Weekly_Program[182];
     } rtc;
+};
+
+/* struct S_Data - HEX payload in S message */
+struct S_Data {
+    char Duty_Cycle[2];
+    char comma1; /* reserved for comma */
+    char Command_Result[1];
+    char comma2; /* reserved for comma */
+    char Free_Memory_Slots[2];
+    char CRLF[2]; /* reserved for '\n\r' */
 };
 
 /* Outgoing messages

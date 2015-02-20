@@ -24,6 +24,9 @@
 
 #include "maxmsg.h"
 
+#define MSG_END "\r\n" /* Message terminator sequence */
+#define MSG_END_LEN 2  /* Message terminator sequence len */
+
 int MAXDiscoverSend();
 int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
 int MAXConnect(struct sockaddr *sa);
