@@ -67,7 +67,8 @@ struct send_param {
 
 void help(const char* program)
 {
-    printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> <params>\n", program);
+    printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> " \
+           "<params>\n", program);
     printf("\tCommands  Params\n" \
            "\tget       status\n" \
            "\tset       mode <auto|comfort|eco>\n" \
@@ -104,7 +105,7 @@ int eval_S_response(MAX_msg_list* msg_list)
     return 0;
 }
 
-/* param -  pointer to struct s_Data */
+/* param -  pointer to struct s_Program_Data */
 int send_auto_schedule(union cfglist *cl, void *param)
 {
     struct auto_schedule *as;
@@ -115,7 +116,8 @@ int send_auto_schedule(union cfglist *cl, void *param)
     struct MAX_message *m_s;
     MAX_msg_list *msg_list = NULL;
     int connectionId = ((struct send_param*)param)->connectionId;
-    struct s_Data *s_Data = (struct s_Data*)((struct send_param*)param)->data;
+    struct s_Program_Data *s_Program_Data =
+        (struct s_Program_Data*)((struct send_param*)param)->data;
 
     if (cl == NULL)
     {
@@ -128,7 +130,7 @@ int send_auto_schedule(union cfglist *cl, void *param)
         return -1;
     }
 
-    s_Data->Day_of_week[0] = as->day;
+    s_Program_Data->Day_of_week[0] = as->day;
 #ifdef MAX_DEBUG
     printf("    packing schedule\n");
 #endif
@@ -149,8 +151,8 @@ int send_auto_schedule(union cfglist *cl, void *param)
         minutes = program->minutes;
         t = (60 * hour + minutes) / 5;
         /* Use first fiels Temp_and_Time to write into next as well */
-        s_Data->Temp_and_Time[i] = ((temp << 1) | ((t >> 8) & (0x1)));
-        s_Data->Temp_and_Time[i + 1] = (t & 0xff);
+        s_Program_Data->Temp_and_Time[i] = ((temp << 1) | ((t >> 8) & (0x1)));
+        s_Program_Data->Temp_and_Time[i + 1] = (t & 0xff);
         i += 2;
         program = program->next;
         if (i >= (MAX_CMD_SETPOINTS * 2))
@@ -159,10 +161,11 @@ int send_auto_schedule(union cfglist *cl, void *param)
         }
     }
 
-    /* Send here */
+    /* Create packet */
     off = sizeof(struct MAX_message) - 1;
-    m_s = (struct MAX_message*)hex_to_base64((const unsigned char*)s_Data,
-           sizeof(*s_Data), off, MSG_END_LEN, &outlen);
+    m_s = (struct MAX_message*)hex_to_base64(
+           (const unsigned char*)s_Program_Data,
+           sizeof(*s_Program_Data), off, MSG_END_LEN, &outlen);
     m_s->type = 's';
     m_s->colon = ':';
     memcpy(&m_s->data[outlen], MSG_END, MSG_END_LEN);
@@ -181,12 +184,23 @@ int send_ruleset(union cfglist *cl, void *param)
 {
     struct config *config;
     struct auto_schedule *as;
-    struct s_Data s_Data;
+    struct s_Program_Data s_Program_Data;
+/*
+    struct s_Temp_Mode_Data s_Temp_Mode_Data;
+*/
+    struct s_Eco_Temp_Data s_Eco_Temp_Data;
     struct send_param *send_param = param;
+    int off, res;
+    size_t outlen;
+    struct MAX_message *m_s;
+    MAX_msg_list *msg_list = NULL;
+    int connectionId = ((struct send_param*)param)->connectionId;
 
+    /* Send Program / weekly schedule */
     /* Initialize base string */
-    memset(&s_Data, 0, sizeof(s_Data));
-    memcpy(s_Data.Base_String,  base_string_code(ProgramData), BS_CODE_SZ);
+    memset(&s_Program_Data, 0, sizeof(s_Program_Data));
+    memcpy(s_Program_Data.Base_String,
+           base_string_code(ProgramData), BS_CODE_SZ);
 
     if (cl == NULL || cl->ruleset.device_config == NULL)
     {
@@ -203,14 +217,14 @@ int send_ruleset(union cfglist *cl, void *param)
 #endif
         return 0;
     }
-    s_Data.RF_Address[0] =
+    s_Program_Data.RF_Address[0] =
         (cl->ruleset.device_config->rf_address >> 16) & 0xff;
-    s_Data.RF_Address[1] =
+    s_Program_Data.RF_Address[1] =
         (cl->ruleset.device_config->rf_address >> 8) & 0xff;
-    s_Data.RF_Address[2] =
+    s_Program_Data.RF_Address[2] =
         cl->ruleset.device_config->rf_address & 0xff;
 
-    s_Data.Room_Nr[0] = cl->ruleset.device_config->config.room_id;
+    s_Program_Data.Room_Nr[0] = config->room_id;
 
     as = config->auto_schedule;
     if (as == NULL)
@@ -221,9 +235,71 @@ int send_ruleset(union cfglist *cl, void *param)
     }
 
     /* Join data to send params */
-    send_param->data = (void*)&s_Data;
+    send_param->data = (void*)&s_Program_Data;
     walklist((union cfglist*)as, send_auto_schedule, param);
 
+#if 0
+    /* Send Temp and Mode */
+    /* Initialize base string */
+    memset(&s_Temp_Mode_Data, 0, sizeof(s_Temp_Mode_Data));
+    memcpy(s_Temp_Mode_Data.Base_String,
+           base_string_code(TemperatureAndMode), BS_CODE_SZ);
+
+    s_Temp_Mode_Data.RF_Address[0] =
+        (cl->ruleset.device_config->rf_address >> 16) & 0xff;
+    s_Temp_Mode_Data.RF_Address[1] =
+        (cl->ruleset.device_config->rf_address >> 8) & 0xff;
+    s_Temp_Mode_Data.RF_Address[2] =
+        cl->ruleset.device_config->rf_address & 0xff;
+
+    s_Temp_Mode_Data.Room_Nr[0] = config->room_id;
+#endif
+
+    /* Send Eco Temp */
+    /* Temperature comfort, temperature eco, temperature max, temperature min,
+     * temperature window open */
+    /* Initialize base string */
+    memset(&s_Eco_Temp_Data, 0, sizeof(s_Eco_Temp_Data));
+    memcpy(s_Eco_Temp_Data.Base_String,
+           base_string_code(EcoModeTemperature), BS_CODE_SZ);
+
+    s_Eco_Temp_Data.RF_Address[0] =
+        (cl->ruleset.device_config->rf_address >> 16) & 0xff;
+    s_Eco_Temp_Data.RF_Address[1] =
+        (cl->ruleset.device_config->rf_address >> 8) & 0xff;
+    s_Eco_Temp_Data.RF_Address[2] =
+        cl->ruleset.device_config->rf_address & 0xff;
+
+    s_Eco_Temp_Data.Room_Nr[0] = config->room_id;
+
+#define TEMP_MAX 30.5
+#define TEMP_MIN 4.5
+#define TEMP_OFF 0
+#define TEMP_WINDOW_OPEN 12
+#define DUR_WINDOW_OPEN 15
+    s_Eco_Temp_Data.Temperature_Comfort[0] = (unsigned char)(config->comfort_temp * 2);
+    s_Eco_Temp_Data.Temperature_Eco[0] = (unsigned char)(config->eco_temp * 2);
+    s_Eco_Temp_Data.Temperature_Max[0] = (unsigned char)(TEMP_MAX * 2);
+    s_Eco_Temp_Data.Temperature_Min[0] = (unsigned char)(TEMP_MIN * 2);
+    s_Eco_Temp_Data.Temperature_Offset[0] = (unsigned char)((TEMP_OFF + 3.5) * 2);
+    s_Eco_Temp_Data.Temperature_Window_Open[0] = (unsigned char)(TEMP_WINDOW_OPEN * 2);
+    s_Eco_Temp_Data.Duration_Window_Open[0] = (unsigned char)(DUR_WINDOW_OPEN / 5);
+
+    /* Create packet */
+    off = sizeof(struct MAX_message) - 1;
+    m_s = (struct MAX_message*)hex_to_base64(
+           (const unsigned char*)&s_Eco_Temp_Data,
+           sizeof(s_Eco_Temp_Data), off, MSG_END_LEN, &outlen);
+    m_s->type = 's';
+    m_s->colon = ':';
+    memcpy(&m_s->data[outlen], MSG_END, MSG_END_LEN);
+    msg_list = appendMAXmsg(NULL, m_s, off + outlen + MSG_END_LEN);
+#ifdef MAX_DEBUG
+    dumpMAXNetpkt(msg_list);
+#endif
+    /* Send message */
+    res = MAXMsgSend(connectionId, msg_list);
+    freeMAXpkt(&msg_list);
     return 0;
 }
 

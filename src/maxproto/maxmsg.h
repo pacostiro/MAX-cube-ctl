@@ -232,8 +232,27 @@ struct S_Data {
 /* Maximum number of set points per s command */
 #define MAX_CMD_SETPOINTS 7
 
-/* struct s_Data - HEX payload in s message */
-struct s_Data {
+/*
+ * 's' command data messages
+ *
+ * "temperature and mode"
+ * "program data"
+ * "eco mode temperature"
+ * "config valve functions"
+ * "add link partner"
+ * "remove link partner"
+ * "set group address"
+ */
+
+/* struct s_Header_Data - HEX payload in s message, header part */
+struct s_Header_Data {
+    char Base_String[6];
+    unsigned char RF_Address[3];
+    unsigned char Room_Nr[1];
+};
+
+/* struct s_Program_Data - HEX payload in s message for 'program data' */
+struct s_Program_Data {
     char Base_String[6];
     unsigned char RF_Address[3];
     unsigned char Room_Nr[1];
@@ -245,6 +264,31 @@ struct s_Data {
     unsigned char Temp_and_Time5[2];
     unsigned char Temp_and_Time6[2];
     unsigned char Temp_and_Time7[2];
+};
+
+/* struct s_Temp_Mode_Data - HEX payload in s message for
+ * 'temperature and mode' */
+struct s_Temp_Mode_Data {
+    char Base_String[6];
+    unsigned char RF_Address[3];
+    unsigned char Room_Nr[1];
+    unsigned char Temp_and_Mode[1];
+    unsigned char Date_Until[1];
+};
+
+/* struct s_Temp_Mode_Data - HEX payload in s message for
+ *  * 'temperature and mode' */
+struct s_Eco_Temp_Data {
+    char Base_String[6];
+    unsigned char RF_Address[3];
+    unsigned char Room_Nr[1];
+    unsigned char Temperature_Comfort[1];
+    unsigned char Temperature_Eco[1];
+    unsigned char Temperature_Max[1];
+    unsigned char Temperature_Min[1];
+    unsigned char Temperature_Offset[1];
+    unsigned char Temperature_Window_Open[1];
+    unsigned char Duration_Window_Open[1];
 };
 
 /* struct l_Data - contains only CR LF terminator for q message */
