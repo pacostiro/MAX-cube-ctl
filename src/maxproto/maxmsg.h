@@ -266,6 +266,14 @@ struct s_Program_Data {
     unsigned char Temp_and_Time7[2];
 };
 
+enum TempMode
+{
+    AutoTempMode = 0,
+    ManualTempMode = 1,
+    VacationTempMode = 2,
+    BoostMode = 3
+};
+
 /* struct s_Temp_Mode_Data - HEX payload in s message for
  * 'temperature and mode' */
 struct s_Temp_Mode_Data {
@@ -276,8 +284,8 @@ struct s_Temp_Mode_Data {
     unsigned char Date_Until[1];
 };
 
-/* struct s_Temp_Mode_Data - HEX payload in s message for
- *  * 'temperature and mode' */
+/* struct s_Eco_Temp_Data - HEX payload in s message for
+ *  * 'eco/comfort/etc temperature' */
 struct s_Eco_Temp_Data {
     char Base_String[6];
     unsigned char RF_Address[3];

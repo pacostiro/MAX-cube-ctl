@@ -65,13 +65,18 @@ struct send_param {
     void *data;
 };
 
+struct mode_param {
+    int mode;
+    char *device_id;
+};
+
 void help(const char* program)
 {
     printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> " \
            "<params>\n", program);
     printf("\tCommands  Params\n" \
            "\tget       status\n" \
-           "\tset       mode <auto|comfort|eco>\n" \
+           "\tset       mode <auto|comfort|eco> all|<device_id>\n" \
            "\tset       program\n");
 }
 
@@ -180,14 +185,97 @@ int send_auto_schedule(union cfglist *cl, void *param)
     return res;
 }
 
+int send_mode(union cfglist *cl, void *param)
+{
+    struct s_Temp_Mode_Data s_Temp_Mode_Data;
+    struct send_param *send_param = (struct send_param*)param;
+    struct mode_param *mode_param = (struct mode_param*)send_param->data;
+    uint32_t rf_address = cl->ruleset.device_config->rf_address;
+    struct config *config;
+    int off, res;
+    size_t outlen;
+    struct MAX_message *m_s;
+    MAX_msg_list *msg_list = NULL;
+    int connectionId = ((struct send_param*)param)->connectionId;
+
+    /* Send Temp and Mode */
+    /* Initialize base string */
+    memset(&s_Temp_Mode_Data, 0, sizeof(s_Temp_Mode_Data));
+    memcpy(s_Temp_Mode_Data.Base_String,
+           base_string_code(TemperatureAndMode), BS_CODE_SZ);
+
+    if (cl == NULL || cl->ruleset.device_config == NULL)
+    {
+        return -1;
+    }
+    config = &cl->ruleset.device_config->config;
+
+    if (strcmp(mode_param->device_id, "all") != 0)
+    {
+        /* mode not applied to all devices */
+        uint32_t device_id = strtol(mode_param->device_id, NULL, 16);
+        if (device_id != rf_address)
+        {
+            /* skip this device */
+            return 0;
+        }
+    }
+    printf("device: %x, send_mode mode: %d, device_id: %s\n", rf_address,
+        mode_param->mode, mode_param->device_id);
+
+    s_Temp_Mode_Data.RF_Address[0] =
+        (cl->ruleset.device_config->rf_address >> 16) & 0xff;
+    s_Temp_Mode_Data.RF_Address[1] =
+        (cl->ruleset.device_config->rf_address >> 8) & 0xff;
+    s_Temp_Mode_Data.RF_Address[2] =
+        cl->ruleset.device_config->rf_address & 0xff;
+
+    s_Temp_Mode_Data.Room_Nr[0] = config->room_id;
+    
+    switch (mode_param->mode)
+    {
+        case AutoMode:
+            s_Temp_Mode_Data.Temp_and_Mode[0] =
+                (0b11000000 & (AutoTempMode << 6)) | 
+                (0b00111111 & 0);
+            break;
+        case EcoMode:
+            s_Temp_Mode_Data.Temp_and_Mode[0] =
+                (0b11000000 & (ManualTempMode << 6)) | 
+                (0b00111111 & (int)(config->eco_temp * 2));
+            break;
+        case ComfortMode:
+            s_Temp_Mode_Data.Temp_and_Mode[0] =
+                (0b11000000 & (ManualTempMode << 6)) | 
+                (0b00111111 & (int)(config->comfort_temp * 2));
+            break;
+        default:
+            return 1;
+    }
+
+    /* Create packet */
+    off = sizeof(struct MAX_message) - 1;
+    m_s = (struct MAX_message*)hex_to_base64(
+           (const unsigned char*)&s_Temp_Mode_Data,
+           sizeof(s_Temp_Mode_Data), off, MSG_END_LEN, &outlen);
+    m_s->type = 's';
+    m_s->colon = ':';
+    memcpy(&m_s->data[outlen], MSG_END, MSG_END_LEN);
+    msg_list = appendMAXmsg(NULL, m_s, off + outlen + MSG_END_LEN);
+#ifdef MAX_DEBUG
+    dumpMAXNetpkt(msg_list);
+#endif
+    /* Send message */
+    res = MAXMsgSend(connectionId, msg_list);
+    freeMAXpkt(&msg_list);
+    return res;
+}
+
 int send_ruleset(union cfglist *cl, void *param)
 {
     struct config *config;
     struct auto_schedule *as;
     struct s_Program_Data s_Program_Data;
-/*
-    struct s_Temp_Mode_Data s_Temp_Mode_Data;
-*/
     struct s_Eco_Temp_Data s_Eco_Temp_Data;
     struct send_param *send_param = param;
     int off, res;
@@ -238,23 +326,6 @@ int send_ruleset(union cfglist *cl, void *param)
     send_param->data = (void*)&s_Program_Data;
     walklist((union cfglist*)as, send_auto_schedule, param);
 
-#if 0
-    /* Send Temp and Mode */
-    /* Initialize base string */
-    memset(&s_Temp_Mode_Data, 0, sizeof(s_Temp_Mode_Data));
-    memcpy(s_Temp_Mode_Data.Base_String,
-           base_string_code(TemperatureAndMode), BS_CODE_SZ);
-
-    s_Temp_Mode_Data.RF_Address[0] =
-        (cl->ruleset.device_config->rf_address >> 16) & 0xff;
-    s_Temp_Mode_Data.RF_Address[1] =
-        (cl->ruleset.device_config->rf_address >> 8) & 0xff;
-    s_Temp_Mode_Data.RF_Address[2] =
-        cl->ruleset.device_config->rf_address & 0xff;
-
-    s_Temp_Mode_Data.Room_Nr[0] = config->room_id;
-#endif
-
     /* Send Eco Temp */
     /* Temperature comfort, temperature eco, temperature max, temperature min,
      * temperature window open */
@@ -300,7 +371,7 @@ int send_ruleset(union cfglist *cl, void *param)
     /* Send message */
     res = MAXMsgSend(connectionId, msg_list);
     freeMAXpkt(&msg_list);
-    return 0;
+    return res;
 }
 
 int read_config(struct ruleset **ruleset)
@@ -452,7 +523,6 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
 
     /* Send 'q' (quit) command*/
     msg_list = create_quit_pkt(connectionId);
-    /* Wait for Hello message */
     if (MAXMsgSend(connectionId, msg_list) < 0)
     {
         printf("Error : Hello message not received from MAX!cube\n");
@@ -478,8 +548,12 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
     MAX_msg_list* msg_list = NULL;
     int mode;
     int connectionId;
+    struct ruleset *rs;
+    struct send_param send_param;
+    struct mode_param mode_param;
+    int result = 0;
 
-    if (argc != 2)
+    if (argc != 3)
     {
         help(program);
         return 1;
@@ -497,13 +571,31 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
     {
         mode = EcoMode;
     }
+    else
+    {
+        help(program);
+        return 1;
+    }
 
+    /* Read config file */
+    if (read_config(&rs) != 0)
+    {
+        printf("Error : cannot read configuration\n");
+        return 1;
+    }
+
+#ifdef MAX_DEBUG
+    /* Dump rules to check configuration */
+    walklist((union cfglist*)rs, dump_ruleset, NULL);
+#endif
+
+    /* Open connection and send configuration */
     /* Connect to cube */
     if ((connectionId = MAXConnect((struct sockaddr*)serv_addr)) < 0)
     {
         printf("Error : Could not connect to MAX!cube\n");
         return 1;
-    } 
+    }
 
     /* Wait for Hello message */
     if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
@@ -515,6 +607,41 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
 #ifdef MAX_DEBUG
     dumpMAXHostpkt(msg_list);
 #endif
+    freeMAXpkt(&msg_list);
+
+    /* Pack some params needed to send function */
+    send_param.connectionId = connectionId;
+    send_param.data = &mode_param;
+    mode_param.mode = mode;
+    mode_param.device_id = argv[2];
+    /* Send program configuration */
+    walklist((union cfglist*)rs, send_mode, &send_param);
+
+    /* Wait for S response */
+    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        return 1;
+    }
+#ifdef MAX_DEBUG
+    dumpMAXHostpkt(msg_list);
+#endif
+    result = eval_S_response(msg_list);
+    freeMAXpkt(&msg_list);
+    if (result != 0)
+    {
+        printf("Error : 'S' command discarded\n");
+        /* Don't return here, call close session gracefully */
+    }
+
+    /* Send 'q' (quit) command*/
+    msg_list = create_quit_pkt(connectionId);
+    if (MAXMsgSend(connectionId, msg_list) < 0)
+    {
+        printf("Error : Hello message not received from MAX!cube\n");
+        /* Don't return here, call MAXDisconnect */
+    }
+    freeMAXpkt(&msg_list);
 
     if (MAXDisconnect(connectionId) < 0)
     {
@@ -522,7 +649,10 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
         return 1;
     }
 
-    return 0;
+    /* Free configuration data */
+    walklist((union cfglist*)rs, free_ruleset, NULL);
+
+    return result;
 }
 
 int set(const char* program, struct sockaddr_in* serv_addr,
