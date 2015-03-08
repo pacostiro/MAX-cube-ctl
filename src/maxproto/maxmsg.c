@@ -176,7 +176,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             printf("\tData Length         %d\n", val);
 
                             tmp = data->device.Address_of_device;
-                            printf("\tAddress_of_device   %x%x%x\n",
+                            printf("\tAddress of device   %x%x%x\n",
                                    tmp[0], tmp[1], tmp[2]);
 
                             val = data->device.Device_Type[0];
@@ -215,6 +215,11 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             hours = (config->rtc.Decalcification[0] & 0b11111);
                             printf("\tDecalcification     %s %2d:00\n",
                                    week_days[day], hours);
+                            fval = config->rtc.Max_Valve_Setting[0] *
+                                100 / 255.;
+                            printf("\tMax Valve Setting   %.1f\n", fval);
+                            fval = config->rtc.Valve_Offset[0] * 100 / 255.;
+                            printf("\tValve Offset        %.1f\n", fval);
                             memcpy(&ws, &config->rtc.Weekly_Program[0],
                                    sizeof(ws));
                             s = 0;
@@ -281,6 +286,51 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                         }
                         default:
                             break;
+                    }
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
+                    break;
+                }
+            case 'L':
+                {
+                    struct L_Data *L_D;
+                    unsigned char *tmp;
+                    int val, len, pos, tlen;
+                    float fval;
+                    size_t hdr_sz = sizeof(struct MAX_message) - 1;
+                    
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
+                    pos = 0;
+                    tlen = msg_list->MAX_msg_len - hdr_sz;
+                    printf("\tTotal length        %d\n", tlen);
+                    while (1)
+                    {
+                        char l_end[] = {0xce, 0x00};
+                        if (memcmp(md + pos, l_end, sizeof(l_end)) == 0)
+                        {
+                            /* Found terminator, exit */
+                            break;
+                        }
+                        L_D = (struct L_Data*)(md + pos);
+                        val = L_D->Submessage_Length[0];
+                        len = val;
+                        printf("\tSubmessage Length   %d\n", val);
+                        tmp = L_D->RF_Address;
+                        printf("\tRF address          %x%x%x\n",
+                               tmp[0], tmp[1], tmp[2]);
+                        if (len > 6)
+                        {
+                            /* More info available */
+                            val = L_D->Valve_Position[0];
+                            printf("\tValve Position      %d%%\n", val);
+                            fval = L_D->Temperature[0] / 2.;
+                            printf("\tTemperature         %.1f\n", fval);
+                        }
+                        pos += len + 1;
+                        if (pos >= tlen)
+                        {
+                            break;
+                        }
+                        printf("\t----------------------\n");
                     }
                     printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     break;

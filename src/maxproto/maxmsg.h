@@ -197,6 +197,19 @@ struct S_Data {
     char CRLF[2]; /* reserved for '\n\r' */
 };
 
+/* struct L_Data - decoded from Base64 payload in L message */
+struct L_Data {
+    char Submessage_Length[1];
+    unsigned char RF_Address[3];
+    char Unknown[1];
+    char Flags[2];
+    /* If the submessage length is greater than 6, these fields follow */
+    unsigned char Valve_Position[1];
+    unsigned char Temperature[1];
+    /* generic pointer to following data */
+    char next_data[1];
+};
+
 /* Outgoing messages
  * ==========================================
  * OUTGOING URL:                         "u:"
@@ -299,7 +312,7 @@ struct s_Eco_Temp_Data {
     unsigned char Duration_Window_Open[1];
 };
 
-/* struct l_Data - contains only CR LF terminator for q message */
+/* struct q_Data - contains only CR LF terminator for q message */
 struct q_Data {
     char CRLF[2]; /* reserved for '\n\r' */
 };

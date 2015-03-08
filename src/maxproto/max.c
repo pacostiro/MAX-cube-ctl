@@ -101,6 +101,20 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                 new->MAX_msg_len = off + outlen;
                 break;
             case 'L':
+                /* Calculate offset of payload */
+                off = sizeof(struct MAX_message) - 1;
+                /* Calculate length of data */
+                len = tmp - MSG_END_LEN - pos - off;
+                new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
+                               len, off, 0, &outlen);
+                if (new->MAX_msg == NULL)
+                {
+                    errno = EBADMSG;
+                    return -1;
+                }
+                memcpy(new->MAX_msg, pos, off);
+                new->MAX_msg_len = off + outlen;
+                break;
             case 'M':
             case 'Q':
                 new->MAX_msg = malloc(tmp - pos);
