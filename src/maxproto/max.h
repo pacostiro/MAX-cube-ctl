@@ -32,6 +32,7 @@ int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
 int MAXConnect(struct sockaddr *sa);
 int MAXDisconnect(int connectionId);
 int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list);
-int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo);
+int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list);
+int MaxMsgRecvTmo(int connectionId, MAX_msg_list **input_msg_list, int tmo);
 
 #endif /* MAX_H */

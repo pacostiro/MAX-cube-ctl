@@ -210,7 +210,20 @@ int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list)
     return 0;
 }
 
-int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo)
+int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list)
+{
+    char recvBuff[4096];
+    int n;
+
+    if ((n = read(connectionId, recvBuff, sizeof(recvBuff) - 1)) > 0)
+    {
+        parseMAXData(recvBuff, n, input_msg_list);
+    }
+
+    return 0;
+}
+
+int MaxMsgRecvTmo(int connectionId, MAX_msg_list **input_msg_list, int tmo)
 {
 #ifdef __CYGWIN__
     fd_set fds;
@@ -219,8 +232,8 @@ int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo)
     struct timeval tv;
     int n;
 
-    tv.tv_sec = tmo;
-    tv.tv_usec = 0;
+    tv.tv_sec = tmo / 1000;
+    tv.tv_usec = (tmo % 1000) * 1000;
     
 #ifdef __CYGWIN__
     FD_ZERO(&fds);
