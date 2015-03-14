@@ -41,7 +41,7 @@
 
 #define MAX_CONFIG_FILE "MAX.conf"
 
-#define MSG_TMO 2      /* Message receive timeout */
+#define MSG_TMO 500      /* Message receive timeout */
 
 enum Mode
 {
@@ -77,7 +77,7 @@ void help(const char* program)
     printf("\tCommands  Params\n" \
            "\tget       status\n" \
            "\tset       mode <auto|comfort|eco> all|<device_id>\n" \
-           "\tset       program\n");
+           "\tset       program all|<device_id>\n");
 }
 
 MAX_msg_list* create_quit_pkt(int connectionId)
@@ -181,6 +181,26 @@ int send_auto_schedule(union cfglist *cl, void *param)
     /* Send message */
     res = MAXMsgSend(connectionId, msg_list);
     freeMAXpkt(&msg_list);
+    if (res != 0)
+    {
+        return res;
+    }
+
+    /* Wait for S response */
+    if (MaxMsgRecv(connectionId, &msg_list) < 0)
+    {
+        return 0;
+    }
+#ifdef MAX_DEBUG
+    dumpMAXHostpkt(msg_list);
+#endif
+    res = eval_S_response(msg_list);
+    freeMAXpkt(&msg_list);
+    if (res != 0)
+    {
+        printf("Error : 'S' command discarded\n");
+        /* Don't return here, call close session gracefully */
+    }
     
     return res;
 }
@@ -190,7 +210,7 @@ int send_mode(union cfglist *cl, void *param)
     struct s_Temp_Mode_Data s_Temp_Mode_Data;
     struct send_param *send_param = (struct send_param*)param;
     struct mode_param *mode_param = (struct mode_param*)send_param->data;
-    uint32_t rf_address = cl->ruleset.device_config->rf_address;
+    uint32_t rf_address;
     struct config *config;
     int off, res;
     size_t outlen;
@@ -210,6 +230,7 @@ int send_mode(union cfglist *cl, void *param)
     }
     config = &cl->ruleset.device_config->config;
 
+    rf_address = cl->ruleset.device_config->rf_address;
     if (strcmp(mode_param->device_id, "all") != 0)
     {
         /* mode not applied to all devices */
@@ -268,21 +289,38 @@ int send_mode(union cfglist *cl, void *param)
     /* Send message */
     res = MAXMsgSend(connectionId, msg_list);
     freeMAXpkt(&msg_list);
+
+    /* Wait for S response */
+    if (MaxMsgRecv(connectionId, &msg_list) < 0)
+    {
+        return 0;
+    }
+#ifdef MAX_DEBUG
+    dumpMAXHostpkt(msg_list);
+#endif
+    res = eval_S_response(msg_list);
+    freeMAXpkt(&msg_list);
+    if (res != 0)
+    {
+        printf("Error : 'S' command discarded\n");
+        /* Don't return here, call close session gracefully */
+    }
     return res;
 }
 
 int send_ruleset(union cfglist *cl, void *param)
 {
+    uint32_t rf_address;
     struct config *config;
     struct auto_schedule *as;
     struct s_Program_Data s_Program_Data;
     struct s_Eco_Temp_Data s_Eco_Temp_Data;
-    struct send_param *send_param = param;
+    struct send_param *send_param = param, sched_param;
     int off, res;
     size_t outlen;
     struct MAX_message *m_s;
     MAX_msg_list *msg_list = NULL;
-    int connectionId = ((struct send_param*)param)->connectionId;
+    int connectionId = send_param->connectionId;
 
     /* Send Program / weekly schedule */
     /* Initialize base string */
@@ -295,6 +333,18 @@ int send_ruleset(union cfglist *cl, void *param)
         return -1;
     }
     config = &cl->ruleset.device_config->config;
+
+    rf_address = cl->ruleset.device_config->rf_address;
+    if (strcmp((const char*)(send_param->data), "all") != 0)
+    {
+        /* mode not applied to all devices */
+        uint32_t device_id = strtol((const char*)(send_param->data), NULL, 16);
+        if (device_id != rf_address)
+        {
+            /* skip this device */
+            return 0;
+        }
+    }
 #ifdef MAX_DEBUG
     printf("sending device %x\n", cl->ruleset.device_config->rf_address);
 #endif
@@ -323,8 +373,9 @@ int send_ruleset(union cfglist *cl, void *param)
     }
 
     /* Join data to send params */
-    send_param->data = (void*)&s_Program_Data;
-    walklist((union cfglist*)as, send_auto_schedule, param);
+    sched_param.connectionId = send_param->connectionId;
+    sched_param.data = (void*)&s_Program_Data;
+    walklist((union cfglist*)as, send_auto_schedule, &sched_param);
 
     /* Send Eco Temp */
     /* Temperature comfort, temperature eco, temperature max, temperature min,
@@ -371,6 +422,22 @@ int send_ruleset(union cfglist *cl, void *param)
     /* Send message */
     res = MAXMsgSend(connectionId, msg_list);
     freeMAXpkt(&msg_list);
+
+    /* Wait for S response */
+    if (MaxMsgRecv(connectionId, &msg_list) < 0)
+    {
+        return 0;
+    }
+#ifdef MAX_DEBUG
+    dumpMAXHostpkt(msg_list);
+#endif
+    res = eval_S_response(msg_list);
+    freeMAXpkt(&msg_list);
+    if (res != 0)
+    {
+        printf("Error : 'S' command discarded\n");
+        /* Don't return here, call close session gracefully */
+    }
     return res;
 }
 
@@ -405,7 +472,7 @@ int get_status(const char* program, struct sockaddr_in* serv_addr,
     }
 
     /* Wait for Hello message */
-    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    if (MaxMsgRecvTmo(connectionId, &msg_list, MSG_TMO) < 0)
     {
         printf("Error : Hello message not received from MAX!cube\n");
         return 1;
@@ -461,7 +528,7 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
     struct send_param send_param;
     int result = 0;
 
-    if (argc != 1)
+    if (argc != 2)
     {
         help(program);
         return 1;
@@ -488,7 +555,7 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
     }
 
     /* Wait for Hello message */
-    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    if (MaxMsgRecvTmo(connectionId, &msg_list, MSG_TMO) < 0)
     {
         printf("Error : Hello message not received from MAX!cube\n");
         return 1;
@@ -501,25 +568,9 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
 
     /* Pack some params needed to send function */
     send_param.connectionId = connectionId;
+    send_param.data = argv[1];
     /* Send program configuration */
     walklist((union cfglist*)rs, send_ruleset, &send_param);
-
-    /* Wait for S response */
-    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
-    {
-        printf("Error : Hello message not received from MAX!cube\n");
-        return 1;
-    }
-#ifdef MAX_DEBUG
-    dumpMAXHostpkt(msg_list);
-#endif
-    result = eval_S_response(msg_list);
-    freeMAXpkt(&msg_list);
-    if (result != 0)
-    {
-        printf("Error : 'S' command discarded\n");
-        /* Don't return here, call close session gracefully */
-    }
 
     /* Send 'q' (quit) command*/
     msg_list = create_quit_pkt(connectionId);
@@ -598,7 +649,7 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
     }
 
     /* Wait for Hello message */
-    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
+    if (MaxMsgRecvTmo(connectionId, &msg_list, MSG_TMO) < 0)
     {
         printf("Error : Hello message not received from MAX!cube\n");
         return 1;
@@ -616,23 +667,6 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
     mode_param.device_id = argv[2];
     /* Send program configuration */
     walklist((union cfglist*)rs, send_mode, &send_param);
-
-    /* Wait for S response */
-    if (MaxMsgRecv(connectionId, &msg_list, MSG_TMO) < 0)
-    {
-        printf("Error : Hello message not received from MAX!cube\n");
-        return 1;
-    }
-#ifdef MAX_DEBUG
-    dumpMAXHostpkt(msg_list);
-#endif
-    result = eval_S_response(msg_list);
-    freeMAXpkt(&msg_list);
-    if (result != 0)
-    {
-        printf("Error : 'S' command discarded\n");
-        /* Don't return here, call close session gracefully */
-    }
 
     /* Send 'q' (quit) command*/
     msg_list = create_quit_pkt(connectionId);
