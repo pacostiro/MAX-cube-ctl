@@ -74,6 +74,7 @@ void help(const char* program)
 {
     printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> " \
            "<params>\n", program);
+    printf("       %s discover\n", program);
     printf("\tCommands  Params\n" \
            "\tget       status\n" \
            "\tset       mode <auto|comfort|eco> all|<device_id>\n" \
@@ -731,12 +732,57 @@ int set(const char* program, struct sockaddr_in* serv_addr,
     return 1;
 }
 
+int discover(const char* program, int argc, char *argv[])
+{
+    struct sockaddr_storage ss;
+    struct sockaddr *sa = (struct sockaddr*)&ss;
+    struct sockaddr_in *sin = (struct sockaddr_in*)sa;
+    struct sockaddr_in6 *sin6 = (struct sockaddr_in6*)sa;
+    char buf[64];
+    uint16_t port;
+    const char *res = NULL;
+    
+    if (argc > 1)
+    {
+        help(program);
+        return 1;
+    }
+
+    MAXDiscoverSend();
+    MAXDiscoverRecv(sa, sizeof(ss));
+    
+    if (sa->sa_family == AF_INET)
+    {
+        res = inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
+        port = sin->sin_port;
+    }
+    else if (sa->sa_family == AF_INET6)
+    {
+        res = inet_ntop(AF_INET6, &sin6->sin6_addr, buf, sizeof(buf));
+        port = sin6->sin6_port;
+    }
+    if (res != NULL)
+    {
+        printf("Max cube available at address: %s port: %d\n", buf, port);
+    }
+    else
+    {
+        printf("No cube available in LAN\n");
+    }
+    
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     struct sockaddr_in serv_addr;
 
     if(argc < 4)
     {
+        if (strcmp(argv[1], "discover") == 0)
+        {
+            return discover(argv[0], argc - 1, &argv[1]);
+        }
         help(argv[0]);
         return 1;
     }

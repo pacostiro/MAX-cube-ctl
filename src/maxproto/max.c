@@ -24,6 +24,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #include "maxmsg.h"
 #include "max.h"
@@ -157,6 +159,55 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
 
 int MAXDiscoverSend()
 {
+    struct sockaddr_in sin_bcast, sin_mcast;
+    int i, pkt_len, n;
+    char discover_pkt[] = "eQ3Max*\0**********I";
+    int sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int broadcast = 1;
+
+    sin_mcast.sin_family = AF_INET;
+    sin_mcast.sin_port = htons(MAX_DISCOVER_PORT);
+    inet_pton(AF_INET, MAX_MCAST_ADDR, &sin_mcast.sin_addr);
+
+    sin_bcast.sin_family = AF_INET;
+    sin_bcast.sin_port = htons(MAX_DISCOVER_PORT);
+    inet_pton(AF_INET, MAX_BCAST_ADDR, &sin_bcast.sin_addr);
+    
+    pkt_len = sizeof(discover_pkt) - 1;
+    
+    /* Send to multicast address 3 times */
+    for (i = 0; i < 3; i++)
+    {
+        n = sendto(sd, discover_pkt, pkt_len, 0, (struct sockaddr*)&sin_mcast,
+                   sizeof(sin_mcast));
+        if (n < 0)
+        {
+            close(sd);
+            return n;
+        }
+    }
+
+    if (setsockopt(sd, SOL_SOCKET, SO_BROADCAST, &broadcast,
+        sizeof(broadcast)) == -1)
+    {
+        close(sd);
+        return -1;
+    }
+    
+    /* Send to broadcast address 3 times */
+    for (i = 0; i < 3; i++)
+    {
+        n = sendto(sd, discover_pkt, pkt_len, 0, (struct sockaddr*)&sin_bcast,
+                   sizeof(sin_bcast));
+        if (n < 0)
+        {
+            close(sd);
+            return n;
+        }
+    }
+    
+    close(sd);
+
     return 0;
 }
 

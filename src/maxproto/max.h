@@ -27,6 +27,11 @@
 #define MSG_END "\r\n" /* Message terminator sequence */
 #define MSG_END_LEN 2  /* Message terminator sequence len */
 
+#define MAX_DISCOVER_PORT 23272
+
+#define MAX_MCAST_ADDR "224.0.0.1"
+#define MAX_BCAST_ADDR "255.255.255.255"
+
 int MAXDiscoverSend();
 int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
 int MAXConnect(struct sockaddr *sa);
