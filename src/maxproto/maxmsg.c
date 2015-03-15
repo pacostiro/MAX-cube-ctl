@@ -440,6 +440,128 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
     }
 }
 
+unsigned char* findMAXDaySchedule(uint16_t day, MAX_msg_list *msg_list)
+{
+
+    if (msg_list && msg_list->MAX_msg->type == 'C')
+    {
+        char* md = msg_list->MAX_msg->data;
+        union C_Data_Device *data =
+            (union C_Data_Device*)(md + sizeof(struct C_Data));
+
+        if (data->device.Device_Type[0] == RadiatorThermostat)
+        {
+            int msg_day, hours;
+            uint16_t ws;
+            int s;
+            union C_Data_Config *config =
+                    (union C_Data_Config*)((char*)data +
+                    sizeof(union C_Data_Device));
+
+            s = 0;
+            msg_day = 0;
+            while (s < sizeof(config->rtc.Weekly_Program))
+            {
+                if (msg_day == day)
+                {
+                    return &config->rtc.Weekly_Program[s];
+                }
+                ws = (((config->rtc.Weekly_Program[s] & 1) << 8)
+                     | config->rtc.Weekly_Program[s + 1]) * 5;
+                hours = ws / 60;
+                if (hours >= 24)
+                {
+                    s = (s / (MAX_DAY_SETPOINTS * 2) + 1) *
+                        MAX_DAY_SETPOINTS* 2;
+                    msg_day++;
+                }
+                else
+                {
+                    s += 2;
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+MAX_msg_list* findMAXConfig(uint32_t rf_address, MAX_msg_list *msg_list)
+{
+    char buf[1024];
+
+    while (msg_list != NULL) {
+        if (msg_list->MAX_msg && msg_list->MAX_msg->type == 'C')
+        {
+            char* md = msg_list->MAX_msg->data;
+            /* Check if this message is for our device */
+            struct C_Data *C_D = (struct C_Data*)md;
+            uint32_t msg_rf_address;
+
+            snprintf(buf, sizeof(C_D->RF_address) + 1, C_D->RF_address);
+            msg_rf_address = strtol(buf, NULL, 16);
+            if (rf_address == msg_rf_address)
+            {
+                return msg_list;
+            }
+        }
+        msg_list = msg_list->next;
+    }
+    return NULL;
+}
+
+int cmpMAXConfigParam(MAX_msg_list *msg_list, int param, void *value)
+{
+    if (msg_list && msg_list->MAX_msg && msg_list->MAX_msg->type == 'C')
+    {
+        char* md = msg_list->MAX_msg->data;
+        union C_Data_Device *data =
+            (union C_Data_Device*)(md + sizeof(struct C_Data));
+
+        switch (param)
+        {
+            case EcoConfigParam:
+            {
+                if (data->device.Device_Type[0] == RadiatorThermostat)
+                {
+                    union C_Data_Config *config =
+                        (union C_Data_Config*)((char*)data +
+                                sizeof(union C_Data_Device));
+                    float fval;
+                            
+                    fval = config->rtc.Eco_Temperature[0] / 2.;
+                    if (*(float*)value == fval)
+                    {
+                        return 0;
+                    }
+                    return 1;
+                }
+                break;
+            }
+            case ComfortConfigParam:
+            {
+                if (data->device.Device_Type[0] == RadiatorThermostat)
+                {
+                    union C_Data_Config *config =
+                        (union C_Data_Config*)((char*)data +
+                                sizeof(union C_Data_Device));
+                    float fval;
+                            
+                    fval = config->rtc.Comfort_Temperature[0] / 2.;
+                    if (*(float*)value == fval)
+                    {
+                        return 0;
+                    }
+                    return 1;
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+    return -1;
+}
+
 /* Dump packet in network format */
 void dumpMAXNetpkt(MAX_msg_list* msg_list)
 {

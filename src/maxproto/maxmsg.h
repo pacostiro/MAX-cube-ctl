@@ -49,6 +49,12 @@ enum MaxDeviceType
     EcoButton = 5
 };
 
+enum MaxConfigParam
+{
+    EcoConfigParam = 0,
+    ComfortConfigParam = 1
+};
+
 /* Size of the code in chars */
 #define BS_CODE_SZ  6
 
@@ -328,6 +334,14 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list);
 void dumpMAXNetpkt(MAX_msg_list* msg_list);
 /* Free all elements in a message list */
 void freeMAXpkt(MAX_msg_list **msg_list);
+/* Return a pointer to the day schedule in the message */
+unsigned char* findMAXDaySchedule(uint16_t day, MAX_msg_list *msg_list);
+/* find 'C' message in a message list that corresponds to a device by
+ * rf_address */
+MAX_msg_list* findMAXConfig(uint32_t rf_address, MAX_msg_list *msg_list);
+/* Compare config parameter with the one from a message.
+ * Return '0' if the same 'value' is found in the message list */
+int cmpMAXConfigParam(MAX_msg_list *msg_list, int param, void *value);
 
 /* Appends a message 'msg' to a packet (list of messages) msg_list. Return value
  * points to the first element in the list. msg_list can be NULL, in that case

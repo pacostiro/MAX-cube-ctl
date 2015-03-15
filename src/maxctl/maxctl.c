@@ -130,6 +130,13 @@ int send_auto_schedule(union cfglist *cl, void *param)
     }
 
     as = &cl->auto_schedule;
+    if (as->skip != 0)
+    {
+#ifdef MAX_DEBUG
+        printf("    unchanged schedule, send nothing\n");
+#endif
+        return 0;
+    }
     if (as->day < 0 || as->day >= sizeof(week_days) / sizeof(week_days[0]))
     {
         return -1;
@@ -371,12 +378,19 @@ int send_ruleset(union cfglist *cl, void *param)
         printf("    empty schedule, send nothing\n");
 #endif
     }
-
+    
     /* Join data to send params */
     sched_param.connectionId = send_param->connectionId;
     sched_param.data = (void*)&s_Program_Data;
     walklist((union cfglist*)as, send_auto_schedule, &sched_param);
 
+    if (config->skip != 0)
+    {
+#ifdef MAX_DEBUG
+        printf("    unchanged config, send nothing\n");
+#endif
+        goto skip_config;
+    }
     /* Send Eco Temp */
     /* Temperature comfort, temperature eco, temperature max, temperature min,
      * temperature window open */
@@ -438,6 +452,7 @@ int send_ruleset(union cfglist *cl, void *param)
         printf("Error : 'S' command discarded\n");
         /* Don't return here, call close session gracefully */
     }
+skip_config:
     return res;
 }
 
@@ -564,6 +579,9 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
 #ifdef MAX_DEBUG
     dumpMAXHostpkt(msg_list);
 #endif
+    /* Flag rules that updates configuration. We don't send unchanged
+     * parameters */
+    walklist((union cfglist*)rs, flag_ruleset, msg_list);
     freeMAXpkt(&msg_list);
 
     /* Pack some params needed to send function */

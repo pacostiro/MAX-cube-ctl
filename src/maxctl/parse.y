@@ -127,6 +127,7 @@ config      : /* empty */ { $$ = NULL; }
                     dc->config.room_id = NOT_CONFIGURED_UL;
                     dc->config.eco_temp = NOT_CONFIGURED_F;
                     dc->config.comfort_temp = NOT_CONFIGURED_F;
+                    dc->config.skip = 0;
                     dc->config.auto_schedule = NULL;
                 }
                 else
@@ -183,7 +184,7 @@ param       : ROOM STRING ';' {
 
                 dp = (struct devparam*) malloc(sizeof(struct devparam));
                 dp->ptype = Comfort;
-                dp->param.comfort_temp = (uint32_t) strtof($2, &endptr);
+                dp->param.comfort_temp = strtof($2, &endptr);
                 if (*endptr != '\0')
                 {
                     free($2);
@@ -202,7 +203,7 @@ param       : ROOM STRING ';' {
 
                 dp = (struct devparam*) malloc(sizeof(struct devparam));
                 dp->ptype = Eco;
-                dp->param.eco_temp = (uint32_t) strtof($2, &endptr);
+                dp->param.eco_temp = strtof($2, &endptr);
                 if (*endptr != '\0')
                 {
                     free($2);
@@ -246,6 +247,7 @@ schedule    : /* empty */ { $$ = NULL; }
 #ifdef MAX_PARSER_DEBUG
                 printf("schedule day: %s %d\n", $2, as->day);
 #endif
+                as->skip = 0;
                 as->schedule = $4;
                 free($2);
                 as->next = NULL;

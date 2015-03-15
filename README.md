@@ -11,6 +11,8 @@ MAX.conf is a configuration file that can be used to configure the devices.
 Features:
     - Retreive information about devices and configuration (Cube and Radio thermostat supported)
     - Set weekly program by using a configuration file (MAX.conf in the same location as the executable).
+    - Set Eco/Comfort temperatures.
+    - Set working mode for devices.
 
 This protocol partial descriptions are available on the internet.
 
