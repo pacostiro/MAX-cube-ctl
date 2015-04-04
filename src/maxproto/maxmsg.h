@@ -208,12 +208,23 @@ struct L_Data {
     char Submessage_Length[1];
     unsigned char RF_Address[3];
     char Unknown[1];
-    char Flags[2];
+    unsigned char Flags[2];
     /* If the submessage length is greater than 6, these fields follow */
     unsigned char Valve_Position[1];
     unsigned char Temperature[1];
     /* generic pointer to following data */
-    char next_data[1];
+    unsigned char next_data[1];
+};
+
+/* struct Discover_Data - HEX payload in Discover reply */
+struct Discover_Data {
+    char Name[8];
+    char Serial_number[10];
+    unsigned char Request_ID[1];
+    char Request_Type[1];
+    char Reserved[1]; /* Reserved for NULL terminator */
+    unsigned char RF_address[3];
+    unsigned char Firmware_version[2];
 };
 
 /* Outgoing messages

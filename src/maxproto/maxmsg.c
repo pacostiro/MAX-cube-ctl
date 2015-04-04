@@ -47,6 +47,13 @@ static char* week_days[] = {
     "Friday"
 };
 
+static char* temp_mode_str[] = {
+    "auto/weekly program",
+    "manual",
+    "vacation",
+    "boost"
+};
+
 typedef struct BS{
     char value[6];
 } BaseString;
@@ -305,6 +312,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     while (1)
                     {
                         char l_end[] = {0xce, 0x00};
+                        int mode;
                         if (memcmp(md + pos, l_end, sizeof(l_end)) == 0)
                         {
                             /* Found terminator, exit */
@@ -317,6 +325,11 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                         tmp = L_D->RF_Address;
                         printf("\tRF address          %x%x%x\n",
                                tmp[0], tmp[1], tmp[2]);
+                        val = L_D->Flags[0];
+                        val = (val << 8) + L_D->Flags[1];
+                        mode = val & 0b00000011;
+                        printf("\tTemp mode           %s\n",
+                               temp_mode_str[mode]);
                         if (len > 6)
                         {
                             /* More info available */
@@ -324,6 +337,13 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             printf("\tValve Position      %d%%\n", val);
                             fval = L_D->Temperature[0] / 2.;
                             printf("\tTemperature         %.1f\n", fval);
+                            if (mode == AutoTempMode)
+                            {
+                                val = L_D->next_data[0] & 0b00000001;
+                                val = (val << 8) + L_D->next_data[1];
+                                fval = val / 10.;
+                                printf("\tActual temperature  %.1f\n", fval);
+                            }
                         }
                         pos += len + 1;
                         if (pos >= tlen)

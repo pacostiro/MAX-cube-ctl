@@ -72,7 +72,7 @@ struct mode_param {
 
 void help(const char* program)
 {
-    printf("Usage: %s <ip of MAX! cube> <port pf MSX! cube> <command> " \
+    printf("Usage: %s <ip of MAX! cube> <port pf MAX! cube> <command> " \
            "<params>\n", program);
     printf("       %s discover\n", program);
     printf("\tCommands  Params\n" \
@@ -741,6 +741,8 @@ int discover(const char* program, int argc, char *argv[])
     char buf[64];
     uint16_t port;
     const char *res = NULL;
+    int ret;
+    struct Discover_Data D_Data;
     
     if (argc > 1)
     {
@@ -748,26 +750,49 @@ int discover(const char* program, int argc, char *argv[])
         return 1;
     }
 
-    MAXDiscoverSend();
-    MAXDiscoverRecv(sa, sizeof(ss));
+    ret = MAXDiscover(sa, (socklen_t)sizeof(ss), &D_Data, 2000);
+    if (ret < 0)
+    {
+        printf("Error : Discover error\n");
+        return 1;
+    }
+    else if (ret == 0)
+    {
+        printf("No cube available in LAN\n");
+        return 1;
+    }
     
     if (sa->sa_family == AF_INET)
     {
         res = inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
-        port = sin->sin_port;
+        port = ntohs(sin->sin_port);
     }
     else if (sa->sa_family == AF_INET6)
     {
         res = inet_ntop(AF_INET6, &sin6->sin6_addr, buf, sizeof(buf));
-        port = sin6->sin6_port;
+        port = ntohs(sin6->sin6_port);
     }
+    /* Port is however hardcodded */
+    port = MAX_TCP_PORT;
     if (res != NULL)
     {
         printf("Max cube available at address: %s port: %d\n", buf, port);
+        
+        snprintf(buf, sizeof(D_Data.Name) + 1, "%s", D_Data.Name);
+        printf("\tCube name:  %s\n", buf);
+        
+        snprintf(buf, sizeof(D_Data.Serial_number) + 1, D_Data.Serial_number);
+        printf("\tSerial no:  %s\n", buf);
+
+        printf("\tRF Address: %02x%02x%02x\n", D_Data.RF_address[0],
+            D_Data.RF_address[1], D_Data.RF_address[2]);
+
+        printf("\tFirmware:   %02x%02x\n", D_Data.Firmware_version[0],
+            D_Data.Firmware_version[1]);
     }
     else
     {
-        printf("No cube available in LAN\n");
+        printf("Error : IP address error\n");
     }
     
     return 0;
@@ -779,6 +804,11 @@ int main(int argc, char *argv[])
 
     if(argc < 4)
     {
+        if(argc == 1)
+        {
+            help(argv[0]);
+            return 1;
+        }
         if (strcmp(argv[1], "discover") == 0)
         {
             return discover(argv[0], argc - 1, &argv[1]);
