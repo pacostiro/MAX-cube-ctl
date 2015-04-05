@@ -52,6 +52,7 @@ struct program {
 struct auto_schedule {
     struct auto_schedule *next;
     uint16_t day;
+    int      skip;
     struct program *schedule;
 };
 
@@ -59,6 +60,7 @@ struct config {
     uint32_t room_id;
     float    eco_temp;
     float    comfort_temp;
+    int      skip;
     struct auto_schedule *auto_schedule;
 };
 
@@ -90,7 +92,14 @@ union cfglist {
     struct program program;
 };
 
+/* dump_ruleset prints out an entry in the rule set. An entry corresponds to a
+ * device */
 int dump_ruleset(union cfglist *cl, void *param);
+/* flag_ruleset flags an entry in the rule set if it is identical to the
+ * configuration found in the message list passed as argument. */
+int flag_ruleset(union cfglist *cl, void *param);
+/* free_ruleset frees an entry in the rule set. An entry corresponds to a
+ * device */
 int free_ruleset(union cfglist *cl, void *param);
 
 /* Function to iterate a list and apply a callback function on each element */

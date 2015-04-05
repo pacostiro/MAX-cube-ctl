@@ -24,6 +24,9 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
 
 #include "maxmsg.h"
 #include "max.h"
@@ -101,6 +104,20 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
                 new->MAX_msg_len = off + outlen;
                 break;
             case 'L':
+                /* Calculate offset of payload */
+                off = sizeof(struct MAX_message) - 1;
+                /* Calculate length of data */
+                len = tmp - MSG_END_LEN - pos - off;
+                new->MAX_msg = (struct MAX_message*)base64_to_hex(pos + off,
+                               len, off, 0, &outlen);
+                if (new->MAX_msg == NULL)
+                {
+                    errno = EBADMSG;
+                    return -1;
+                }
+                memcpy(new->MAX_msg, pos, off);
+                new->MAX_msg_len = off + outlen;
+                break;
             case 'M':
             case 'Q':
                 new->MAX_msg = malloc(tmp - pos);
@@ -141,14 +158,159 @@ int parseMAXData(char *MAXData, int size, MAX_msg_list** msg_list)
     return 0;
 }
 
-int MAXDiscoverSend()
+static int addrinifaddrs(struct sockaddr *sa, struct ifaddrs *ifaddr)
 {
+    while (ifaddr)
+    {
+        if (ifaddr->ifa_addr->sa_family == sa->sa_family)
+        {
+            if (sa->sa_family == AF_INET)
+            {
+                struct sockaddr_in *sin, *ifsin;
+                sin = (struct sockaddr_in*)sa;
+                ifsin = (struct sockaddr_in*)ifaddr->ifa_addr;
+                if (ifsin->sin_addr.s_addr == sin->sin_addr.s_addr)
+                {
+                    /* Found it! */
+                    return 1;
+                }
+            }
+            else
+            {
+                /* Only IPv4 supported */
+                return 0;
+            }
+        }
+        ifaddr = ifaddr->ifa_next;
+    }
     return 0;
 }
 
-int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len)
+int MAXDiscover(struct sockaddr *sa, socklen_t sa_len,
+    struct Discover_Data *D_Data, int tmo)
 {
-    return 0;
+#ifdef __CYGWIN__
+    fd_set fds;
+#endif
+    struct timeval tv;
+    struct sockaddr_in sin_bcast, sin_mcast, sin;
+    int i, pkt_len, n;
+    char discover_pkt[] = "eQ3Max*\0**********I";
+    int sd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    int broadcast = 1;
+    struct ifaddrs *ifaddr;
+
+    if ((n = getifaddrs(&ifaddr)) != 0) {
+        close(sd);
+        return n;
+    }    
+
+    tv.tv_sec = tmo / 1000;
+    tv.tv_usec = (tmo % 1000) * 1000;
+
+    sin_mcast.sin_family = AF_INET;
+    sin_mcast.sin_port = htons(MAX_DISCOVER_PORT);
+    inet_pton(AF_INET, MAX_MCAST_ADDR, &sin_mcast.sin_addr);
+
+    sin_bcast.sin_family = AF_INET;
+    sin_bcast.sin_port = htons(MAX_DISCOVER_PORT);
+    inet_pton(AF_INET, MAX_BCAST_ADDR, &sin_bcast.sin_addr);
+    
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(MAX_DISCOVER_PORT);
+    sin.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    n = bind(sd, (struct sockaddr*)&sin, sizeof(sin));
+    if (n < 0)
+    {
+        freeifaddrs(ifaddr);
+        close(sd);
+        return n;
+    }
+    
+    pkt_len = sizeof(discover_pkt) - 1;
+    
+    /* Send to multicast address 3 times */
+    for (i = 0; i < 3; i++)
+    {
+        n = sendto(sd, discover_pkt, pkt_len, 0, (struct sockaddr*)&sin_mcast,
+                   sizeof(sin_mcast));
+        if (n < 0)
+        {
+            freeifaddrs(ifaddr);
+            close(sd);
+            return n;
+        }
+    }
+
+    if (setsockopt(sd, SOL_SOCKET, SO_BROADCAST, &broadcast,
+        sizeof(broadcast)) == -1)
+    {
+        freeifaddrs(ifaddr);
+        close(sd);
+        return -1;
+    }
+    
+    /* Send to broadcast address 3 times */
+    for (i = 0; i < 3; i++)
+    {
+        n = sendto(sd, discover_pkt, pkt_len, 0, (struct sockaddr*)&sin_bcast,
+                   sizeof(sin_bcast));
+        if (n < 0)
+        {
+            freeifaddrs(ifaddr);
+            close(sd);
+            return n;
+        }
+    }
+
+#ifdef __CYGWIN__
+    FD_ZERO(&fds);
+    FD_SET(sd, &fds);
+
+    do {
+        n = select(sd + 1, &fds, NULL, NULL, &tv);
+        if (n == -1)
+        {
+            freeifaddrs(ifaddr);
+            return -1;
+        }
+        else if (n > 0)
+        {
+            n = recvfrom(sd, D_Data, sizeof(struct Discover_Data), 0, sa,
+                &sa_len);
+            /* Ignore own packets */
+            if (n > 0 && addrinifaddrs(sa, ifaddr) == 0)
+            {
+                /* This has to be the packet we were looking for */
+                break;
+            }
+        }
+    } while (n > 0);
+#else
+    if (setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv,
+        sizeof(struct timeval)) < 0)
+    {
+        freeifaddrs(ifaddr);
+        return -1;
+    }
+
+    do {
+            n = recvfrom(sd, D_Data, sizeof(struct Discover_Data), 0, sa,
+                &sa_len);
+            /* Ignore own packets */
+            if (n > 0 && addrinifaddrs(sa, ifaddr) == 0)
+            {
+                /* This has to be the packet we were looking for */
+                break;
+            }
+    } while (n > 0);
+#endif
+
+    freeifaddrs(ifaddr);
+    close(sd);
+
+    return n;    
 }
 
 int MAXConnect(struct sockaddr *sa)
@@ -196,7 +358,20 @@ int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list)
     return 0;
 }
 
-int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo)
+int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list)
+{
+    char recvBuff[4096];
+    int n;
+
+    if ((n = read(connectionId, recvBuff, sizeof(recvBuff) - 1)) > 0)
+    {
+        parseMAXData(recvBuff, n, input_msg_list);
+    }
+
+    return 0;
+}
+
+int MaxMsgRecvTmo(int connectionId, MAX_msg_list **input_msg_list, int tmo)
 {
 #ifdef __CYGWIN__
     fd_set fds;
@@ -205,8 +380,8 @@ int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo)
     struct timeval tv;
     int n;
 
-    tv.tv_sec = tmo;
-    tv.tv_usec = 0;
+    tv.tv_sec = tmo / 1000;
+    tv.tv_usec = (tmo % 1000) * 1000;
     
 #ifdef __CYGWIN__
     FD_ZERO(&fds);

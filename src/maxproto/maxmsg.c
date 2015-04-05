@@ -47,6 +47,13 @@ static char* week_days[] = {
     "Friday"
 };
 
+static char* temp_mode_str[] = {
+    "auto/weekly program",
+    "manual",
+    "vacation",
+    "boost"
+};
+
 typedef struct BS{
     char value[6];
 } BaseString;
@@ -176,7 +183,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             printf("\tData Length         %d\n", val);
 
                             tmp = data->device.Address_of_device;
-                            printf("\tAddress_of_device   %x%x%x\n",
+                            printf("\tAddress of device   %x%x%x\n",
                                    tmp[0], tmp[1], tmp[2]);
 
                             val = data->device.Device_Type[0];
@@ -201,12 +208,25 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             printf("\tComfort Temperature %.1f\n", fval);
                             fval = config->rtc.Eco_Temperature[0] / 2.;
                             printf("\tEco Temperature     %.1f\n", fval);
+                            fval = config->rtc.Max_Set_Point_Temperature[0] / 2.;
+                            printf("\tMax Set Point Temp  %.1f\n", fval);
+                            fval = config->rtc.Min_Set_Point_Temperature[0] / 2.;
+                            printf("\tMin Set Point Temp  %.1f\n", fval);
                             fval = config->rtc.Temperature_offset[0] / 2. - 3.5;
                             printf("\tTemperature offset  %.1f\n", fval);
+                            fval = config->rtc.Window_Open_Temperature[0] / 2.;
+                            printf("\tWindow Open Temp    %.1f\n", fval);
+                            val = config->rtc.Window_Open_Duration[0] * 5;
+                            printf("\tWindow Open Dur     %d min\n", val);
                             day = config->rtc.Decalcification[0] >> 5;
                             hours = (config->rtc.Decalcification[0] & 0b11111);
                             printf("\tDecalcification     %s %2d:00\n",
                                    week_days[day], hours);
+                            fval = config->rtc.Max_Valve_Setting[0] *
+                                100 / 255.;
+                            printf("\tMax Valve Setting   %.1f\n", fval);
+                            fval = config->rtc.Valve_Offset[0] * 100 / 255.;
+                            printf("\tValve Offset        %.1f\n", fval);
                             memcpy(&ws, &config->rtc.Weekly_Program[0],
                                    sizeof(ws));
                             s = 0;
@@ -277,6 +297,64 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     break;
                 }
+            case 'L':
+                {
+                    struct L_Data *L_D;
+                    unsigned char *tmp;
+                    int val, len, pos, tlen;
+                    float fval;
+                    size_t hdr_sz = sizeof(struct MAX_message) - 1;
+                    
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
+                    pos = 0;
+                    tlen = msg_list->MAX_msg_len - hdr_sz;
+                    printf("\tTotal length        %d\n", tlen);
+                    while (1)
+                    {
+                        char l_end[] = {0xce, 0x00};
+                        int mode;
+                        if (memcmp(md + pos, l_end, sizeof(l_end)) == 0)
+                        {
+                            /* Found terminator, exit */
+                            break;
+                        }
+                        L_D = (struct L_Data*)(md + pos);
+                        val = L_D->Submessage_Length[0];
+                        len = val;
+                        printf("\tSubmessage Length   %d\n", val);
+                        tmp = L_D->RF_Address;
+                        printf("\tRF address          %x%x%x\n",
+                               tmp[0], tmp[1], tmp[2]);
+                        val = L_D->Flags[0];
+                        val = (val << 8) + L_D->Flags[1];
+                        mode = val & 0b00000011;
+                        printf("\tTemp mode           %s\n",
+                               temp_mode_str[mode]);
+                        if (len > 6)
+                        {
+                            /* More info available */
+                            val = L_D->Valve_Position[0];
+                            printf("\tValve Position      %d%%\n", val);
+                            fval = L_D->Temperature[0] / 2.;
+                            printf("\tTemperature         %.1f\n", fval);
+                            if (mode == AutoTempMode)
+                            {
+                                val = L_D->next_data[0] & 0b00000001;
+                                val = (val << 8) + L_D->next_data[1];
+                                fval = val / 10.;
+                                printf("\tActual temperature  %.1f\n", fval);
+                            }
+                        }
+                        pos += len + 1;
+                        if (pos >= tlen)
+                        {
+                            break;
+                        }
+                        printf("\t----------------------\n");
+                    }
+                    printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
+                    break;
+                }
             case 'S':
                 {
                     struct S_Data *S_D = (struct S_Data*)md;
@@ -297,43 +375,74 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                 }
             case 's':
                 {
-                    struct s_Data *s_D = (struct s_Data*)md;
+                    struct s_Header_Data *s_H_D = (struct s_Header_Data*)md;
                     unsigned char *tmp;
                     float fval;
                     uint32_t val, hours, mins;
                     uint16_t ws, idx, s;
 
                     printf(">>>>>>>>>>>>>>>>>>>> TX >>>>>>>>>>>>>>>>>>>>\n");
-                    snprintf(buf, sizeof(s_D->Base_String) + 1,
-                            s_D->Base_String);
+                    memcpy(buf, s_H_D->Base_String, sizeof(s_H_D->Base_String));
                     idx = base_string_index(buf);
                     printf("\tSet                 %s\n", bs_name[idx]);
 
-                    tmp = s_D->RF_Address;
+                    tmp = s_H_D->RF_Address;
                     printf("\tRF address          %x%x%x\n",
                            tmp[0], tmp[1], tmp[2]);
 
-                    val = s_D->Room_Nr[0];
+                    val = s_H_D->Room_Nr[0];
                     printf("\tRoom Nr             %d\n", val);
 
-                    val = s_D->Day_of_week[0];
-                    printf("\tDay Program         %s\n", week_days[val]);
-
-                    s = 0;
-                    while (s < MAX_CMD_SETPOINTS * 2)
+                    switch (idx)
                     {
-                        fval = (s_D->Temp_and_Time[s] >> 1) / 2.;
-                        ws = (((s_D->Temp_and_Time[s] & 1) << 8) |
-                                s_D->Temp_and_Time[s + 1]) * 5;
-                        hours = ws / 60;
-                        mins = ws %60;
-                        printf("\t\t\t    %.1f until %02d:%02d\n",
-                               fval, hours, mins);
-                        s += 2;
-                        if (hours >= 24)
+                        case ProgramData:
                         {
+                            struct s_Program_Data *s_P_D =
+                                (struct s_Program_Data*)md;
+                            val = s_P_D->Day_of_week[0];
+                            printf("\tDay Program         %s\n",
+                                   week_days[val]);
+        
+                            s = 0;
+                            while (s < MAX_CMD_SETPOINTS * 2)
+                            {
+                                fval = (s_P_D->Temp_and_Time[s] >> 1) / 2.;
+                                ws = (((s_P_D->Temp_and_Time[s] & 1) << 8) |
+                                        s_P_D->Temp_and_Time[s + 1]) * 5;
+                                hours = ws / 60;
+                                mins = ws %60;
+                                printf("\t\t\t    %.1f until %02d:%02d\n",
+                                       fval, hours, mins);
+                                s += 2;
+                                if (hours >= 24)
+                                {
+                                    break;
+                                }
+                            }
                             break;
                         }
+                        case EcoModeTemperature:
+                        {
+                            struct s_Eco_Temp_Data *s_E_D =
+                                (struct s_Eco_Temp_Data*)md;
+                            fval = s_E_D->Temperature_Comfort[0] / 2.;
+                            printf("\tComfort Temperature %.1f\n", fval);
+                            fval = s_E_D->Temperature_Eco[0] / 2.;
+                            printf("\tEco Temperature     %.1f\n", fval);
+                            fval = s_E_D->Temperature_Max[0] / 2.;
+                            printf("\tMax Set Point Temp  %.1f\n", fval);
+                            fval = s_E_D->Temperature_Min[0] / 2.;
+                            printf("\tMin Set Point Temp  %.1f\n", fval);
+                            fval = s_E_D->Temperature_Offset[0] / 2. - 3.5;
+                            printf("\tTemperature offset  %.1f\n", fval);
+                            fval = s_E_D->Temperature_Window_Open[0] / 2.;
+                            printf("\tWindow Open Temp    %.1f\n", fval);
+                            val = s_E_D->Duration_Window_Open[0] * 5;
+                            printf("\tWindow Open Durat   %d\n", val);
+                            break;
+                        }
+                        default:
+                            break;
                     }
                     printf(">>>>>>>>>>>>>>>>>>>> TX >>>>>>>>>>>>>>>>>>>>\n");
                     break;
@@ -351,6 +460,128 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
     }
 }
 
+unsigned char* findMAXDaySchedule(uint16_t day, MAX_msg_list *msg_list)
+{
+
+    if (msg_list && msg_list->MAX_msg->type == 'C')
+    {
+        char* md = msg_list->MAX_msg->data;
+        union C_Data_Device *data =
+            (union C_Data_Device*)(md + sizeof(struct C_Data));
+
+        if (data->device.Device_Type[0] == RadiatorThermostat)
+        {
+            int msg_day, hours;
+            uint16_t ws;
+            int s;
+            union C_Data_Config *config =
+                    (union C_Data_Config*)((char*)data +
+                    sizeof(union C_Data_Device));
+
+            s = 0;
+            msg_day = 0;
+            while (s < sizeof(config->rtc.Weekly_Program))
+            {
+                if (msg_day == day)
+                {
+                    return &config->rtc.Weekly_Program[s];
+                }
+                ws = (((config->rtc.Weekly_Program[s] & 1) << 8)
+                     | config->rtc.Weekly_Program[s + 1]) * 5;
+                hours = ws / 60;
+                if (hours >= 24)
+                {
+                    s = (s / (MAX_DAY_SETPOINTS * 2) + 1) *
+                        MAX_DAY_SETPOINTS* 2;
+                    msg_day++;
+                }
+                else
+                {
+                    s += 2;
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
+MAX_msg_list* findMAXConfig(uint32_t rf_address, MAX_msg_list *msg_list)
+{
+    char buf[1024];
+
+    while (msg_list != NULL) {
+        if (msg_list->MAX_msg && msg_list->MAX_msg->type == 'C')
+        {
+            char* md = msg_list->MAX_msg->data;
+            /* Check if this message is for our device */
+            struct C_Data *C_D = (struct C_Data*)md;
+            uint32_t msg_rf_address;
+
+            snprintf(buf, sizeof(C_D->RF_address) + 1, C_D->RF_address);
+            msg_rf_address = strtol(buf, NULL, 16);
+            if (rf_address == msg_rf_address)
+            {
+                return msg_list;
+            }
+        }
+        msg_list = msg_list->next;
+    }
+    return NULL;
+}
+
+int cmpMAXConfigParam(MAX_msg_list *msg_list, int param, void *value)
+{
+    if (msg_list && msg_list->MAX_msg && msg_list->MAX_msg->type == 'C')
+    {
+        char* md = msg_list->MAX_msg->data;
+        union C_Data_Device *data =
+            (union C_Data_Device*)(md + sizeof(struct C_Data));
+
+        switch (param)
+        {
+            case EcoConfigParam:
+            {
+                if (data->device.Device_Type[0] == RadiatorThermostat)
+                {
+                    union C_Data_Config *config =
+                        (union C_Data_Config*)((char*)data +
+                                sizeof(union C_Data_Device));
+                    float fval;
+                            
+                    fval = config->rtc.Eco_Temperature[0] / 2.;
+                    if (*(float*)value == fval)
+                    {
+                        return 0;
+                    }
+                    return 1;
+                }
+                break;
+            }
+            case ComfortConfigParam:
+            {
+                if (data->device.Device_Type[0] == RadiatorThermostat)
+                {
+                    union C_Data_Config *config =
+                        (union C_Data_Config*)((char*)data +
+                                sizeof(union C_Data_Device));
+                    float fval;
+                            
+                    fval = config->rtc.Comfort_Temperature[0] / 2.;
+                    if (*(float*)value == fval)
+                    {
+                        return 0;
+                    }
+                    return 1;
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+    return -1;
+}
+
 /* Dump packet in network format */
 void dumpMAXNetpkt(MAX_msg_list* msg_list)
 {
@@ -358,8 +589,8 @@ void dumpMAXNetpkt(MAX_msg_list* msg_list)
     MAX_msg_list *tmpmsg_list = NULL;
 
     while (msg_list != NULL) {
-        strcpy(buff, (char*)msg_list->MAX_msg);
-        parseMAXData(buff, strlen(buff), &tmpmsg_list);
+        memcpy(buff, (char*)msg_list->MAX_msg, msg_list->MAX_msg_len);
+        parseMAXData(buff, msg_list->MAX_msg_len, &tmpmsg_list);
         msg_list = msg_list->next;
     }
     dumpMAXHostpkt(tmpmsg_list);
@@ -407,7 +638,7 @@ int base_string_index(const char *base_string)
 
     for(i = 0; i < sizeof(bs_code) / sizeof(bs_code[0]); i++)
     {
-        if (strncmp(bs_code[i].value, base_string, BS_CODE_SZ) == 0)
+        if (memcmp(bs_code[i].value, base_string, BS_CODE_SZ) == 0)
         {
             return i;
         }

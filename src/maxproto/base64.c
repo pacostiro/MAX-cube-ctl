@@ -107,6 +107,7 @@ unsigned char *base64_to_hex(const char *data, size_t data_sz,
 {
     unsigned char *hex_data;
     int i, j;
+    size_t pad_off;
 
     /* Initialize inverse function which transforms base64 chars to 6 bit
      * values. */
@@ -137,6 +138,8 @@ unsigned char *base64_to_hex(const char *data, size_t data_sz,
     }
 
     hex_data = malloc(*output_sz + output_off + output_pad);
+    /* Calculate padding offset */
+    pad_off = output_off + (*output_sz);
     if (hex_data == NULL)
     {
         *output_sz = 0;
@@ -155,15 +158,15 @@ unsigned char *base64_to_hex(const char *data, size_t data_sz,
         }
 
         /* Split 24 bits into 3 bytes */
-        if (j < *output_sz)
+        if (j < pad_off)
         {
             hex_data[j++] = (tmp >> 16) & 0xFF;
         }
-        if (j < *output_sz)
+        if (j < pad_off)
         {
             hex_data[j++] = (tmp >> 8) & 0xFF;
         }
-        if (j < *output_sz)
+        if (j < pad_off)
         {
             hex_data[j++] = tmp & 0xFF;
         }

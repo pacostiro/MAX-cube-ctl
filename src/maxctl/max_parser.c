@@ -26,6 +26,7 @@
 #include <sys/types.h>
 
 #include "max_parser.h"
+#include "maxmsg.h"
 
 static char* week_days[] = {
     "Saturday",
@@ -204,3 +205,119 @@ int free_ruleset(union cfglist *cl, void *param)
 
     return 0;
 }
+
+int flag_auto(union cfglist *cl, void *param)
+{
+    struct auto_schedule *as;
+    struct program *program;
+    MAX_msg_list* msg_list = (MAX_msg_list*)param;
+
+    if (cl == NULL)
+    {
+        return -1;
+    }
+
+    as = &cl->auto_schedule;
+
+    if (as->day < 0 || as->day >= sizeof(week_days) / sizeof(week_days[0]))
+    {
+        return -1;
+    }
+    else
+    {
+        unsigned char *msg_program = findMAXDaySchedule(as->day, msg_list);
+        int s = 0;
+        if (msg_program != NULL)
+        {
+            /* Raise skip flag and clear it if a difference is found */
+            as->skip = 1;
+        }                 
+        program = as->schedule;
+        while (program != NULL)
+        {
+            float fval;
+            uint16_t hours, mins;
+            uint16_t ws;
+            
+            /* Get value from MAX message */
+            fval = (msg_program[s] >> 1) / 2.;
+            ws = (((msg_program[s] & 1) << 8)
+                 | msg_program[s + 1]) * 5;
+            hours = ws / 60;
+            mins = ws %60;
+            /* Compare values and clear skip flag if difference found */
+            if (program->temperature != fval ||
+                program->hour != hours ||
+                program->minutes !=mins)
+            {
+                as->skip = 0;
+                break;
+            }
+            s += 2;
+            program = program->next;
+            /* Break loop if schedule in MAX message reached end of day */
+            if (hours >= 24)
+            {
+                break;
+            }
+        }
+    }
+    return 0;
+}
+
+int flag_ruleset(union cfglist *cl, void *param)
+{
+    struct config *config;
+    struct auto_schedule *as;
+    uint32_t rf_address;
+    MAX_msg_list* msg_list = (MAX_msg_list*)param;
+    int res;
+
+    if (cl == NULL || cl->ruleset.device_config == NULL)
+    {
+        return -1;
+    }
+    rf_address = cl->ruleset.device_config->rf_address;
+    config = &cl->ruleset.device_config->config;
+    if (config->room_id != NOT_CONFIGURED_UL)
+    {
+        msg_list = findMAXConfig(rf_address, msg_list);
+        if (msg_list != NULL)
+        {
+            /* Raise skip flag and clear it if a difference is found */
+            config->skip = 1;
+            if (config->eco_temp != NOT_CONFIGURED_F)
+            {
+                res = cmpMAXConfigParam(msg_list, EcoConfigParam,
+                                        &config->eco_temp);
+                if (res != 0)
+                {
+                    config->skip = 0;
+                    goto auto_schedule;
+                }
+            }
+            if (config->comfort_temp != NOT_CONFIGURED_F)
+            {
+                res = cmpMAXConfigParam(msg_list, ComfortConfigParam,
+                                         &config->comfort_temp);
+                if (res != 0)
+                {
+                    config->skip = 0;
+                    goto auto_schedule;
+                }
+            }
+        }
+auto_schedule:
+        as = config->auto_schedule;
+        if (as != NULL)
+        {
+            walklist((union cfglist*)as, flag_auto, msg_list);
+        }
+        /* Could continue in a while loop if there would be more 'C'
+         * messages for the same device
+         * msglist = findMAXConfig(rf_address, msglist->next); */
+    }
+
+    return 0;
+}
+

@@ -27,11 +27,21 @@
 #define MSG_END "\r\n" /* Message terminator sequence */
 #define MSG_END_LEN 2  /* Message terminator sequence len */
 
-int MAXDiscoverSend();
-int MAXDiscoverRecv(struct sockaddr *sa, size_t sa_len);
+#define MAX_DISCOVER_PORT 23272
+#define MAX_TCP_PORT 62910
+
+#define MAX_MCAST_ADDR "224.0.0.1"
+#define MAX_BCAST_ADDR "255.255.255.255"
+
+/* MAXDiscover retrieves the IP address of a cube in the LAN */
+/* Return value: negative if an error has occured, zero if no cube was found,
+ * positive if a cube has been found */
+int MAXDiscover(struct sockaddr *sa, socklen_t sa_len,
+    struct Discover_Data *D_Data, int tmo);
 int MAXConnect(struct sockaddr *sa);
 int MAXDisconnect(int connectionId);
 int MAXMsgSend(int connectionId, MAX_msg_list *output_msg_list);
-int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list, int tmo);
+int MaxMsgRecv(int connectionId, MAX_msg_list **input_msg_list);
+int MaxMsgRecvTmo(int connectionId, MAX_msg_list **input_msg_list, int tmo);
 
 #endif /* MAX_H */

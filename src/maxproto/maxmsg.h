@@ -49,6 +49,12 @@ enum MaxDeviceType
     EcoButton = 5
 };
 
+enum MaxConfigParam
+{
+    EcoConfigParam = 0,
+    ComfortConfigParam = 1
+};
+
 /* Size of the code in chars */
 #define BS_CODE_SZ  6
 
@@ -197,6 +203,30 @@ struct S_Data {
     char CRLF[2]; /* reserved for '\n\r' */
 };
 
+/* struct L_Data - decoded from Base64 payload in L message */
+struct L_Data {
+    char Submessage_Length[1];
+    unsigned char RF_Address[3];
+    char Unknown[1];
+    unsigned char Flags[2];
+    /* If the submessage length is greater than 6, these fields follow */
+    unsigned char Valve_Position[1];
+    unsigned char Temperature[1];
+    /* generic pointer to following data */
+    unsigned char next_data[1];
+};
+
+/* struct Discover_Data - HEX payload in Discover reply */
+struct Discover_Data {
+    char Name[8];
+    char Serial_number[10];
+    unsigned char Request_ID[1];
+    char Request_Type[1];
+    char Reserved[1]; /* Reserved for NULL terminator */
+    unsigned char RF_address[3];
+    unsigned char Firmware_version[2];
+};
+
 /* Outgoing messages
  * ==========================================
  * OUTGOING URL:                         "u:"
@@ -232,8 +262,27 @@ struct S_Data {
 /* Maximum number of set points per s command */
 #define MAX_CMD_SETPOINTS 7
 
-/* struct s_Data - HEX payload in s message */
-struct s_Data {
+/*
+ * 's' command data messages
+ *
+ * "temperature and mode"
+ * "program data"
+ * "eco mode temperature"
+ * "config valve functions"
+ * "add link partner"
+ * "remove link partner"
+ * "set group address"
+ */
+
+/* struct s_Header_Data - HEX payload in s message, header part */
+struct s_Header_Data {
+    char Base_String[6];
+    unsigned char RF_Address[3];
+    unsigned char Room_Nr[1];
+};
+
+/* struct s_Program_Data - HEX payload in s message for 'program data' */
+struct s_Program_Data {
     char Base_String[6];
     unsigned char RF_Address[3];
     unsigned char Room_Nr[1];
@@ -247,7 +296,40 @@ struct s_Data {
     unsigned char Temp_and_Time7[2];
 };
 
-/* struct l_Data - contains only CR LF terminator for q message */
+enum TempMode
+{
+    AutoTempMode = 0,
+    ManualTempMode = 1,
+    VacationTempMode = 2,
+    BoostMode = 3
+};
+
+/* struct s_Temp_Mode_Data - HEX payload in s message for
+ * 'temperature and mode' */
+struct s_Temp_Mode_Data {
+    char Base_String[6];
+    unsigned char RF_Address[3];
+    unsigned char Room_Nr[1];
+    unsigned char Temp_and_Mode[1];
+    unsigned char Date_Until[1];
+};
+
+/* struct s_Eco_Temp_Data - HEX payload in s message for
+ *  * 'eco/comfort/etc temperature' */
+struct s_Eco_Temp_Data {
+    char Base_String[6];
+    unsigned char RF_Address[3];
+    unsigned char Room_Nr[1];
+    unsigned char Temperature_Comfort[1];
+    unsigned char Temperature_Eco[1];
+    unsigned char Temperature_Max[1];
+    unsigned char Temperature_Min[1];
+    unsigned char Temperature_Offset[1];
+    unsigned char Temperature_Window_Open[1];
+    unsigned char Duration_Window_Open[1];
+};
+
+/* struct q_Data - contains only CR LF terminator for q message */
 struct q_Data {
     char CRLF[2]; /* reserved for '\n\r' */
 };
@@ -263,6 +345,14 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list);
 void dumpMAXNetpkt(MAX_msg_list* msg_list);
 /* Free all elements in a message list */
 void freeMAXpkt(MAX_msg_list **msg_list);
+/* Return a pointer to the day schedule in the message */
+unsigned char* findMAXDaySchedule(uint16_t day, MAX_msg_list *msg_list);
+/* find 'C' message in a message list that corresponds to a device by
+ * rf_address */
+MAX_msg_list* findMAXConfig(uint32_t rf_address, MAX_msg_list *msg_list);
+/* Compare config parameter with the one from a message.
+ * Return '0' if the same 'value' is found in the message list */
+int cmpMAXConfigParam(MAX_msg_list *msg_list, int param, void *value);
 
 /* Appends a message 'msg' to a packet (list of messages) msg_list. Return value
  * points to the first element in the list. msg_list can be NULL, in that case
