@@ -460,6 +460,85 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
     }
 }
 
+/* Log device list info */
+void logMAXHostDeviceList(FILE *fp, MAX_msg_list* msg_list)
+{
+    while (msg_list != NULL) {
+        char* md = msg_list->MAX_msg->data;
+        switch (msg_list->MAX_msg->type)
+        {
+            case 'L':
+                {
+                    struct L_Data *L_D;
+                    unsigned char *tmp;
+                    int val, len, pos, tlen;
+                    float fval;
+                    size_t hdr_sz = sizeof(struct MAX_message) - 1;
+                    
+                    pos = 0;
+                    tlen = msg_list->MAX_msg_len - hdr_sz;
+                    while (1)
+                    {
+                        char l_end[] = {0xce, 0x00};
+                        int mode;
+
+                        if (memcmp(md + pos, l_end, sizeof(l_end)) == 0)
+                        {
+                            /* Found terminator, exit */
+                            break;
+                        }
+                        L_D = (struct L_Data*)(md + pos);
+                        val = L_D->Submessage_Length[0];
+                        len = val;
+                        tmp = L_D->RF_Address;
+                        /* RF Address */
+                        fprintf(fp, "%x%x%x  ",
+                               tmp[0], tmp[1], tmp[2]);
+                        val = L_D->Flags[0];
+                        val = (val << 8) + L_D->Flags[1];
+                        mode = val & 0b00000011;
+                        if (len > 6)
+                        {
+                            /* More info available */
+                            val = L_D->Valve_Position[0];
+                            /* Valve position */
+                            fprintf(fp, "%d  ", val);
+                            fval = L_D->Temperature[0] / 2.;
+                            /* Temperature set */
+                            fprintf(fp, "%.1f  ", fval);
+                            if (mode == AutoTempMode)
+                            {
+                                val = L_D->next_data[0] & 0b00000001;
+                                val = (val << 8) + L_D->next_data[1];
+                                fval = val / 10.;
+                                /* Actual temperature */
+                                fprintf(fp, "%.1f", fval);
+                            }
+                            else
+                            {
+                                fprintf(fp, "NA");
+                            }    
+                        }
+                        else
+                        {
+                            fprintf(fp, "NA  NA");
+                        }    
+                        pos += len + 1;
+                        fprintf(fp, "\n");
+                        if (pos >= tlen)
+                        {
+                            break;
+                        }
+                    }
+                    break;
+                }
+            default:
+                break;
+        }
+        msg_list = msg_list->next;
+    }
+}
+
 unsigned char* findMAXDaySchedule(uint16_t day, MAX_msg_list *msg_list)
 {
 
