@@ -341,6 +341,8 @@ struct l_Data {
 
 /* Dump packet in host format */
 void dumpMAXHostpkt(MAX_msg_list* msg_list);
+/* Log device list info in file */
+void logMAXHostDeviceList(FILE *fp, MAX_msg_list* msg_list);
 /* Dump packet in network format */
 void dumpMAXNetpkt(MAX_msg_list* msg_list);
 /* Free all elements in a message list */

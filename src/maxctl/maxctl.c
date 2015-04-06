@@ -78,7 +78,8 @@ void help(const char* program)
     printf("\tCommands  Params\n" \
            "\tget       status\n" \
            "\tset       mode <auto|comfort|eco> all|<device_id>\n" \
-           "\tset       program all|<device_id>\n");
+           "\tset       program all|<device_id>\n" \
+           "\tlog       <logfile> <freq(mins)>\n");
 }
 
 MAX_msg_list* create_quit_pkt(int connectionId)
@@ -535,6 +536,83 @@ int get(const char* program, struct sockaddr_in* serv_addr,
     return 1;
 }
 
+int logdata(const char* program, struct sockaddr_in* serv_addr,
+        int argc, char *argv[])
+{
+    char *filename, *endptr;
+    int period;
+    FILE *fp;
+
+    if (argc != 3)
+    {
+        help(program);
+        return 1;
+    }
+
+    filename = argv[1];
+    period = strtoul(argv[2], &endptr, 10);
+
+    if (*endptr != '\0')
+    {
+        printf("Error : bad logging interval\n");
+        return 1;
+    }
+
+    fp = fopen(filename, "a+");
+    
+    while(1)
+    {
+        MAX_msg_list* msg_list = NULL;
+        int connectionId;
+        time_t timer;
+        char buf[26];
+        struct tm* tm_info;
+ 
+        /* Open connection and send configuration */
+        /* Connect to cube */
+        if ((connectionId = MAXConnect((struct sockaddr*)serv_addr)) < 0)
+        {
+            printf("Error : Could not connect to MAX!cube\n");
+            goto loop;
+        }
+
+        /* Wait for Hello message */
+        if (MaxMsgRecvTmo(connectionId, &msg_list, MSG_TMO) < 0)
+        {
+            printf("Error : Hello message not received from MAX!cube\n");
+            goto loop;
+        }
+
+        time(&timer);
+        tm_info = localtime(&timer);
+
+        strftime(buf, 26, "%Y:%m:%d %H:%M:%S", tm_info);                        
+        fprintf(fp, "# %s\n", buf);
+        logMAXHostDeviceList(fp, msg_list);
+        fflush(fp);
+        freeMAXpkt(&msg_list);
+
+        /* Send 'q' (quit) command*/
+        msg_list = create_quit_pkt(connectionId);
+        /* Wait for Hello message */
+        if (MAXMsgSend(connectionId, msg_list) < 0)
+        {
+            printf("Error : Hello message not received from MAX!cube\n");
+            /* Don't return here, call MAXDisconnect */
+        }
+        freeMAXpkt(&msg_list);
+
+        if (MAXDisconnect(connectionId) < 0)
+        {
+            printf("Error : Failed to close connection with MAX!cube\n");
+        }
+loop:
+        sleep(60 * period);
+    }
+
+    return 0;
+}
+
 int set_program(const char* program, struct sockaddr_in* serv_addr,
         int argc, char *argv[])
 {
@@ -838,6 +916,10 @@ int main(int argc, char *argv[])
     else if (strcmp(argv[3], "set") == 0)
     {
        return set(argv[0], &serv_addr, argc - 3, &argv[3]);
+    }
+    else if (strcmp(argv[3], "log") == 0)
+    {
+       return logdata(argv[0], &serv_addr, argc - 3, &argv[3]);
     }
 
     help(argv[0]);
