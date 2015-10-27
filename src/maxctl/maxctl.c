@@ -28,6 +28,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
+#include <time.h>
 
 #include "max.h"
 #include "maxmsg.h"
@@ -72,7 +73,7 @@ struct mode_param {
 
 void help(const char* program)
 {
-    printf("Usage: %s <ip of MAX! cube> <port pf MAX! cube> <command> " \
+    printf("Usage: %s <ip of MAX! cube> <port of MAX! cube> <command> " \
            "<params>\n", program);
     printf("       %s discover\n", program);
     printf("\tCommands  Params\n" \
@@ -565,7 +566,7 @@ int logdata(const char* program, struct sockaddr_in* serv_addr,
         MAX_msg_list* msg_list = NULL;
         int connectionId;
         time_t timer;
-        char buf[26];
+        char buf[64];
         struct tm* tm_info;
  
         /* Open connection and send configuration */
@@ -586,7 +587,7 @@ int logdata(const char* program, struct sockaddr_in* serv_addr,
         time(&timer);
         tm_info = localtime(&timer);
 
-        strftime(buf, 26, "%Y:%m:%d %H:%M:%S", tm_info);                        
+        strftime(buf, sizeof(buf), "%Y:%m:%d %H:%M:%S", tm_info);
         fprintf(fp, "# %s\n", buf);
         logMAXHostDeviceList(fp, msg_list);
         fflush(fp);
