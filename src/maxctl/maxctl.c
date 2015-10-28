@@ -860,7 +860,7 @@ int discover(const char* program, int argc, char *argv[])
         snprintf(buf, sizeof(D_Data.Name) + 1, "%s", D_Data.Name);
         printf("\tCube name:  %s\n", buf);
         
-        snprintf(buf, sizeof(D_Data.Serial_number) + 1, D_Data.Serial_number);
+        snprintf(buf, sizeof(D_Data.Serial_number) + 1, "%s", D_Data.Serial_number);
         printf("\tSerial no:  %s\n", buf);
 
         printf("\tRF Address: %02x%02x%02x\n", D_Data.RF_address[0],

@@ -39,6 +39,8 @@
 #ifndef MAXMSG_H
 #define MAXMSG_H
 
+#include <stdio.h>
+
 enum MaxDeviceType
 {
     Cube = 0,
