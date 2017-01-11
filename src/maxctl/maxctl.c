@@ -78,8 +78,8 @@ void help(const char* program)
     printf("       %s discover\n", program);
     printf("\tCommands  Params\n" \
            "\tget       status\n" \
-           "\tset       mode <auto|comfort|eco> all|<device_id>\n" \
-           "\tset       program all|<device_id>\n" \
+           "\tset       mode <auto|comfort|eco> all|<device_id> [config_file]\n" \
+           "\tset       program all|<device_id> [config_file]\n" \
            "\tlog       <logfile> <freq(mins)>\n");
 }
 
@@ -459,9 +459,9 @@ skip_config:
     return res;
 }
 
-int read_config(struct ruleset **ruleset)
+int read_config(struct ruleset **ruleset, const char *conf)
 {
-    FILE *fp = fopen(MAX_CONFIG_FILE, "r");
+    FILE *fp = fopen(conf, "r");
     int res = parse_file(fp, ruleset);
 
     fclose(fp);
@@ -622,15 +622,21 @@ int set_program(const char* program, struct sockaddr_in* serv_addr,
     MAX_msg_list* msg_list = NULL;
     struct send_param send_param;
     int result = 0;
+    const char *conf = MAX_CONFIG_FILE;
 
-    if (argc != 2)
+    if (argc < 2 || argc > 3)
     {
         help(program);
         return 1;
     }
 
+    if (argc == 3)
+    {
+        conf = argv[2];
+    }
+
     /* Read config file */
-    if (read_config(&rs) != 0)
+    if (read_config(&rs, conf) != 0)
     {
         printf("Error : cannot read configuration\n");
         return 1;
@@ -700,12 +706,18 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
     struct ruleset *rs;
     struct send_param send_param;
     struct mode_param mode_param;
+    const char *conf = MAX_CONFIG_FILE;
     int result = 0;
 
-    if (argc != 3)
+    if (argc < 3 || argc > 4)
     {
         help(program);
         return 1;
+    }
+
+    if (argc == 4)
+    {
+        conf = argv[3];
     }
 
     if (strcmp(argv[1], "auto") == 0)
@@ -727,7 +739,7 @@ int set_mode(const char* program, struct sockaddr_in* serv_addr,
     }
 
     /* Read config file */
-    if (read_config(&rs) != 0)
+    if (read_config(&rs, conf) != 0)
     {
         printf("Error : cannot read configuration\n");
         return 1;
