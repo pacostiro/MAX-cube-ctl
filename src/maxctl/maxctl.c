@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -73,7 +74,7 @@ struct mode_param {
 
 void help(const char* program)
 {
-    printf("Usage: %s <ip of MAX! cube> <port of MAX! cube> <command> " \
+    printf("Usage: %s <address of MAX! cube> <port of MAX! cube> <command> " \
            "<params>\n", program);
     printf("       %s discover\n", program);
     printf("\tCommands  Params\n" \
@@ -915,11 +916,38 @@ int main(int argc, char *argv[])
 
     printf("Welcome MAX! cube\n");
 
-    if(inet_pton(AF_INET, argv[1], &serv_addr.sin_addr)<=0)
+    if(inet_pton(AF_INET, argv[1], &serv_addr.sin_addr) <= 0)
     {
-        printf("Error : invalid address\n");
-        help(argv[0]);
-        return 1;
+        struct addrinfo hints, *res;
+        char addr[64];
+
+        /* Not a numeric address, try to resolve it */
+        memset(&hints, 0, sizeof hints);
+        hints.ai_flags = AI_CANONNAME;
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_DGRAM;
+        if (getaddrinfo(argv[1], NULL, &hints, &res) != 0)
+        {
+            printf("Error : invalid address\n");
+            help(argv[0]);
+            return 1;
+        }
+
+        /* Use first returned address */
+        serv_addr.sin_addr.s_addr =
+            ((struct sockaddr_in*)res->ai_addr)->sin_addr.s_addr;
+        freeaddrinfo(res);
+        if (inet_ntop(AF_INET, &serv_addr.sin_addr, addr, sizeof(addr)) != NULL)
+        {
+            printf("Using IP addr: %s\n", addr);
+        }
+        else
+        {
+            /* This should not happen */
+            printf("Error : invalid address\n");
+            help(argv[0]);
+            return 1;
+        }
     } 
 
     if (strcmp(argv[3], "get") == 0)
