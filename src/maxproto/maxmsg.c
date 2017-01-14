@@ -47,6 +47,11 @@ static char* week_days[] = {
     "Friday"
 };
 
+static char* battery_str[] = {
+    "ok",
+    "low"
+};
+
 static char* temp_mode_str[] = {
     "auto/weekly program",
     "manual",
@@ -105,25 +110,25 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     struct H_Data *H_D = (struct H_Data*)md;
                     printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     snprintf(buf, sizeof(H_D->Serial_number) + 1,
-                             H_D->Serial_number);
+                             "%s", H_D->Serial_number);
                     printf("\tSerial no           %s\n", buf);
                     snprintf(buf, sizeof(H_D->RF_address) + 1,
-                             H_D->RF_address);
+                             "%s", H_D->RF_address);
                     printf("\tRF address          %s\n", buf);
                     snprintf(buf, sizeof(H_D->Firmware_version) + 1,
-                             H_D->Firmware_version);
+                             "%s", H_D->Firmware_version);
                     printf("\tFirmware version    %s\n", buf);
-                    snprintf(buf, sizeof(H_D->unknown) + 1, H_D->unknown);
+                    snprintf(buf, sizeof(H_D->unknown) + 1, "%s", H_D->unknown);
                     printf("\tunknown             %s\n", buf);
                     snprintf(buf, sizeof(H_D->HTTP_connection_id),
-                             H_D->HTTP_connection_id);
+                             "%s", H_D->HTTP_connection_id);
                     printf("\tHTTP connection id  %s\n", buf);
                     snprintf(buf, sizeof(H_D->Duty_cycle) + 1,
-                             H_D->Duty_cycle);
+                             "%s", H_D->Duty_cycle);
                     printf("\tDuty cycle          %d%%\n",
                            (int) strtol(buf, NULL, 16));
                     snprintf(buf, sizeof(H_D->Free_Memory_Slots) + 1,
-                             H_D->Free_Memory_Slots);
+                             "%s", H_D->Free_Memory_Slots);
                     printf("\tFree Memory Slots   %d\n",
                             (int) strtol(buf, NULL, 16));
                     memcpy(tmp, H_D->Cube_date, 2);
@@ -145,10 +150,10 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     minutes = strtol(tmp, NULL, 16);
                     printf("\tCube time           %02d:%02d\n", hour, minutes);
                     snprintf(buf, sizeof(H_D->State_Cube_Time) + 1,
-                             H_D->State_Cube_Time);
+                             "%s", H_D->State_Cube_Time);
                     printf("\tState Cube Time     %s\n", buf);
                     snprintf(buf, sizeof(H_D->NTP_Counter) + 1,
-                             H_D->NTP_Counter);
+                             "%s", H_D->NTP_Counter);
                     printf("\tNTP Counter         %s\n", buf);
                     printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     break;
@@ -176,7 +181,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                                         sizeof(union C_Data_Device));
 
                             snprintf(buf, sizeof(C_D->RF_address) + 1,
-                                     C_D->RF_address);
+                                     "%s", C_D->RF_address);
                             printf("\tRF address          %s\n", buf);
 
                             val = data->device.Data_Length[0];
@@ -201,7 +206,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
 
                             snprintf(buf,
                                      sizeof(data->device.Serial_Number) + 1,
-                                     data->device.Serial_Number);
+                                     "%s", data->device.Serial_Number);
                             printf("\tSerial Number       %s\n", buf);
 
                             fval = config->rtc.Comfort_Temperature[0] / 2.;
@@ -262,7 +267,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                                         sizeof(union C_Data_Device));
 
                             snprintf(buf, sizeof(C_D->RF_address) + 1,
-                                     C_D->RF_address);
+                                     "%s", C_D->RF_address);
                             printf("\tRF address          %s\n", buf);
 
                             val = data->cube.Data_Length[0];
@@ -281,7 +286,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
 
                             snprintf(buf,
                                      sizeof(data->cube.Serial_Number) + 1,
-                                     data->cube.Serial_Number);
+                                     "%s", data->cube.Serial_Number);
                             printf("\tSerial Number       %s\n", buf);
                             
                             val = config->cubec.Is_Portal_Enabled[0];
@@ -312,7 +317,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     while (1)
                     {
                         char l_end[] = {0xce, 0x00};
-                        int mode;
+                        int flags_valid, mode = AutoTempMode;
                         if (memcmp(md + pos, l_end, sizeof(l_end)) == 0)
                         {
                             /* Found terminator, exit */
@@ -327,9 +332,17 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                                tmp[0], tmp[1], tmp[2]);
                         val = L_D->Flags[0];
                         val = (val << 8) + L_D->Flags[1];
-                        mode = val & 0b00000011;
-                        printf("\tTemp mode           %s\n",
-                               temp_mode_str[mode]);
+                        flags_valid = val & 0b0001000000000;
+                        if (flags_valid)
+                        {
+                            int battery;
+                            battery = val & 0b10000000;
+                            printf("\tBattery             %s\n",
+                                   battery_str[battery]);
+                            mode = val & 0b00000011;
+                            printf("\tTemp mode           %s\n",
+                                   temp_mode_str[mode]);
+                        }
                         if (len > 6)
                         {
                             /* More info available */
@@ -337,7 +350,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                             printf("\tValve Position      %d%%\n", val);
                             fval = L_D->Temperature[0] / 2.;
                             printf("\tTemperature         %.1f\n", fval);
-                            if (mode == AutoTempMode)
+                            if (flags_valid && mode == AutoTempMode)
                             {
                                 val = L_D->next_data[0] & 0b00000001;
                                 val = (val << 8) + L_D->next_data[1];
@@ -360,14 +373,14 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
                     struct S_Data *S_D = (struct S_Data*)md;
                     printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
                     snprintf(buf, sizeof(S_D->Duty_Cycle) + 1,
-                             S_D->Duty_Cycle);
+                             "%s", S_D->Duty_Cycle);
                     printf("\tDuty Cycle          %d%%\n",
                            (int) strtol(buf, NULL, 16));
                     snprintf(buf, sizeof(S_D->Command_Result) + 1,
-                             S_D->Command_Result);
+                             "%s", S_D->Command_Result);
                     printf("\tCommand Result      %s\n", buf);
                     snprintf(buf, sizeof(S_D->Free_Memory_Slots) + 1,
-                             S_D->Free_Memory_Slots);
+                             "%s", S_D->Free_Memory_Slots);
                     printf("\tFree Memory Slots   %d\n",
                             (int) strtol(buf, NULL, 16));
                     printf("<<<<<<<<<<<<<<<<<<<< RX <<<<<<<<<<<<<<<<<<<<\n");
@@ -463,7 +476,7 @@ void dumpMAXHostpkt(MAX_msg_list* msg_list)
 /* Log device list info */
 void logMAXHostDeviceList(FILE *fp, MAX_msg_list* msg_list)
 {
-    fprintf(fp, "#Addr    Valve(%) TempSet  TempAct\n");
+    fprintf(fp, "#Addr    Valve(%%) TempSet  TempAct\n");
     while (msg_list != NULL) {
         char* md = msg_list->MAX_msg->data;
         switch (msg_list->MAX_msg->type)
@@ -597,7 +610,7 @@ MAX_msg_list* findMAXConfig(uint32_t rf_address, MAX_msg_list *msg_list)
             struct C_Data *C_D = (struct C_Data*)md;
             uint32_t msg_rf_address;
 
-            snprintf(buf, sizeof(C_D->RF_address) + 1, C_D->RF_address);
+            snprintf(buf, sizeof(C_D->RF_address) + 1, "%s", C_D->RF_address);
             msg_rf_address = strtol(buf, NULL, 16);
             if (rf_address == msg_rf_address)
             {

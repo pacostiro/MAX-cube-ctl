@@ -588,7 +588,7 @@ int logdata(const char* program, struct sockaddr_in* serv_addr,
         time(&timer);
         tm_info = localtime(&timer);
 
-        strftime(buf, sizeof(buf), "%Y:%m:%d %H:%M:%S", tm_info);
+        strftime(buf, sizeof(buf), "%Y/%m/%d %H:%M:%S", tm_info);
         fprintf(fp, "# %s\n", buf);
         logMAXHostDeviceList(fp, msg_list);
         fflush(fp);
