@@ -1,10 +1,15 @@
 # define the C compiler to use
 CC = gcc
+# define the Java compiler to use
+JAVAC = javac
+JAVAH = javah
+#JAVA_HOME = /usr/lib/jvm/default-java
 # define any compile-time flags
 CFLAGS = -Wall -g -fPIC
 LFLAGS = -ldl
 LDFLAGS = -shared
 INCLUDES = -I./src/maxproto
+#INCLUDES += -I./src/maxctl -I$(JAVA_HOME)/include/ -I$(JAVA_HOME)/include/linux
 
 RM = rm -f
 
@@ -16,6 +21,9 @@ LIBOBJS = $(LIBSRCS:.c=.o)
 SRCS = $(LIBSRCS)
 SRCS += src/maxctl/maxctl_main.c
 OBJS = $(SRCS:.c=.o)
+#JNISRCS = java/MaxCtlJNI.java
+JNIOBJS = $(JNISRCS:.java=.o)
+DEPS = $(SRCS:.c=.d)
 
 MAIN = maxctl
 SHAREDLIB = libmaxctl.so
@@ -28,8 +36,8 @@ all: $(MAIN) $(SHAREDLIB)
 $(MAIN): $(OBJS)
 	$(CC) -o $(MAIN) $(OBJS) $(LFLAGS)
 
-$(SHAREDLIB): $(LIBOBJS)
-	$(CC) ${LDFLAGS} -o $(SHAREDLIB) $(LIBOBJS)
+$(SHAREDLIB): $(LIBOBJS) $(JNIOBJS)
+	$(CC) ${LDFLAGS} -o $(SHAREDLIB) $(LIBOBJS) $(JNIOBJS)
 
 %.d: %.c
 	@set -e; rm -f $@; \
@@ -43,8 +51,15 @@ $(SHAREDLIB): $(LIBOBJS)
 $(PARSER): $(PARSEY)
 	yacc -p max -o $(PARSER) $(PARSEY)
 
+#$(JNIOBJS): $(JNIOBJS:.o=.h) $(JNIOBJS:.o=.c)
+#	$(CC) $(CFLAGS) $(INCLUDES) -c $*.c  -o $*.o
+
+#$(JNIOBJS:.o=.h):$(JNIOBJS:.o=.java)
+#	$(JAVAC) $*.java
+#	$(JAVAH) -classpath $(*D) -d $(*D) $(*F)
+
 clean:
-	$(RM) $(OBJS) $(SRCS:.c=.d) $(PARSER) \
+	$(RM) $(OBJS) $(DEPS) $(JNISRCS:.java=.class) $(JNISRCS:.java=.h) $(JNIOBJS) $(PARSER) \
 	 *~ $(SHAREDLIB) $(MAIN)
 
--include $(SRCS:.c=.d)
+-include $(DEPS)
