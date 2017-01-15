@@ -1,44 +1,50 @@
 # define the C compiler to use
 CC = gcc
 # define any compile-time flags
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -fPIC
+LFLAGS = -ldl
+LDFLAGS = -shared
+INCLUDES = -I./src/maxproto
 
-INCLUDES += -I./src/maxproto
+RM = rm -f
 
 PARSEY = src/maxctl/parse.y
 PARSER = src/maxctl/parse.c
-SRCS = src/maxproto/max.c src/maxproto/base64.c src/maxproto/maxmsg.c
-SRCS += src/maxctl/maxctl.c src/maxctl/max_parser.c $(PARSER)
-
+LIBSRCS = src/maxproto/max.c src/maxproto/base64.c src/maxproto/maxmsg.c
+LIBSRCS += src/maxctl/maxctl.c src/maxctl/max_parser.c $(PARSER)
+LIBOBJS = $(LIBSRCS:.c=.o)
+SRCS = $(LIBSRCS)
+SRCS += src/maxctl/maxctl_main.c
 OBJS = $(SRCS:.c=.o)
 
 MAIN = maxctl
+SHAREDLIB = libmaxctl.so
 
-#
-# The following part of the makefile is generic; it can be used to 
-# build any executable just by changing the definitions above and by
-# deleting dependencies appended to the file from 'make depend'
-#
+.PHONY: clean
 
-.PHONY: depend clean
-
-all: parser $(MAIN)
+all: $(MAIN) $(SHAREDLIB)
 	@echo  Build OK!
 
-$(MAIN): $(OBJS) 
-	$(CC) $(CFLAGS) $(INCLUDES) -o $(MAIN) $(OBJS) $(LFLAGS) $(LIBS)
+$(MAIN): $(OBJS)
+	$(CC) -o $(MAIN) $(OBJS) $(LFLAGS)
 
-.c.o:
-	$(CC) $(CFLAGS) $(INCLUDES) -c $<  -o $@
+$(SHAREDLIB): $(LIBOBJS)
+	$(CC) ${LDFLAGS} -o $(SHAREDLIB) $(LIBOBJS)
 
-parser:
+%.d: %.c
+	@set -e; rm -f $@; \
+        $(CC) -MM $(CFLAGS) $(INCLUDES) $< > $@.$$$$; \
+	sed 's,\($(*F)\)\.o[ :]*,$(@D)/\1.o $@ : ,g' < $@.$$$$ > $@; \
+	rm -f $@.$$$$
+
+%.o: %.c
+	$(CC) $(CFLAGS) $(INCLUDES) -c $*.c  -o $*.o
+
+$(PARSER): $(PARSEY)
 	yacc -p max -o $(PARSER) $(PARSEY)
 
 clean:
-	$(RM) *.o *~ $(MAIN)
+	$(RM) $(OBJS) $(SRCS:.c=.d) $(PARSER) \
+	 *~ $(SHAREDLIB) $(MAIN)
 
-depend: $(SRCS)
-	makedepend $(INCLUDES) $^
-
-# DO NOT DELETE THIS LINE -- make depend needs it
-
+-include $(SRCS:.c=.d)

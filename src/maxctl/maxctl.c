@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, Costin Popescu
+/* Copyright (c) 2015-2017, Costin Popescu
  * All rights reserved.
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -36,6 +36,7 @@
 #include "base64.h"
 
 #include "max_parser.h"
+#include "maxctl.h"
 
 #if 1
 #define MAX_DEBUG
@@ -890,7 +891,7 @@ int discover(const char* program, int argc, char *argv[])
     return 0;
 }
 
-int main(int argc, char *argv[])
+int maxctl(int argc, char *argv[])
 {
     struct sockaddr_in serv_addr;
 
@@ -967,4 +968,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
